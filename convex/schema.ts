@@ -93,7 +93,8 @@ export default defineSchema({
     impressions: v.number(),
     clicks: v.number(),
     updatedAt: v.number(),
-  }).index("by_shop", ["shopId"]),
+  }).index("by_shop", ["shopId"])
+    .index("by_campaign_id", ["campaignId"]),
 
   syncLog: defineTable({
     shopId: v.id("shops"),
@@ -101,5 +102,6 @@ export default defineSchema({
     endpoint: v.string(),
     status: v.union(v.literal("ok"), v.literal("error")),
     error: v.optional(v.string()),
-  }).index("by_shop", ["shopId"]),
+  }).index("by_shop", ["shopId"])
+    .index("by_synced_at", ["syncedAt"]),
 });
