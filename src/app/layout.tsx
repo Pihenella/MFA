@@ -1,33 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { ConvexClientProvider } from "@/components/ConvexClientProvider";
+import { TopNav } from "@/components/nav/TopNav";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
   title: "MFA — Marketplace Finance Analytics",
-  description: "Личная аналитика маркетплейсов Wildberries",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="ru">
+      <body className={`${inter.className} bg-gray-50 min-h-screen`}>
+        <ConvexClientProvider>
+          <TopNav />
+          <main className="max-w-screen-2xl mx-auto px-4 py-6">{children}</main>
+        </ConvexClientProvider>
       </body>
     </html>
   );
