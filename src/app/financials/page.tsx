@@ -1,6 +1,7 @@
 "use client";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format, subDays } from "date-fns";
@@ -19,9 +20,11 @@ export default function FinancialsPage() {
   const today = format(new Date(), "yyyy-MM-dd");
   const monthAgo = format(subDays(new Date(), 60), "yyyy-MM-dd");
 
+  const activeShopId = (shopId || shops[0]?._id) as Id<"shops"> | undefined;
+
   const rows = useQuery(
     api.financials.getReports,
-    { shopId: (shopId || shops[0]?._id) as any, dateFrom: monthAgo, dateTo: today }
+    activeShopId ? { shopId: activeShopId, dateFrom: monthAgo, dateTo: today } : "skip"
   ) ?? [];
 
   const reports = groupByReport(rows);

@@ -1,6 +1,7 @@
 "use client";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +12,15 @@ import * as XLSX from "xlsx";
 export default function ProductsPage() {
   const shops = useQuery(api.shops.list) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
-  const shopId = selectedShop || shops[0]?._id;
+  const shopId = (selectedShop || shops[0]?._id) as Id<"shops"> | undefined;
 
   const stocks = useQuery(
     api.dashboard.getStocks,
-    shopId ? { shopId: shopId as any } : "skip"
+    shopId ? { shopId } : "skip"
   ) ?? [];
   const costs = useQuery(
     api.costs.listByShop,
-    shopId ? { shopId: shopId as any } : "skip"
+    shopId ? { shopId } : "skip"
   ) ?? [];
 
   const upsertCost = useMutation(api.costs.upsertCost);
@@ -37,8 +38,8 @@ export default function ProductsPage() {
 
   const handleSave = async (nmId: number, supplierArticle: string) => {
     const val = parseFloat(editMap[nmId] ?? "0");
-    if (isNaN(val)) return;
-    await upsertCost({ shopId: shopId as any, nmId, supplierArticle, cost: val });
+    if (isNaN(val) || !shopId) return;
+    await upsertCost({ shopId, nmId, supplierArticle, cost: val });
     setEditMap((m) => { const n = { ...m }; delete n[nmId]; return n; });
   };
 
@@ -57,7 +58,7 @@ export default function ProductsPage() {
         cost: Number(r.cost),
       }));
     if (items.length > 0) {
-      await upsertBulk({ shopId: shopId as any, items });
+      await upsertBulk({ shopId, items });
       alert(`Загружено ${items.length} записей`);
     }
     e.target.value = "";

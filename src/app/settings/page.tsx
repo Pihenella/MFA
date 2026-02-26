@@ -1,6 +1,7 @@
 "use client";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ export default function SettingsPage() {
 
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<Id<"shops"> | null>(null);
 
   const handleAdd = async () => {
     if (!name || !apiKey) return;
@@ -26,10 +27,10 @@ export default function SettingsPage() {
     setApiKey("");
   };
 
-  const handleSync = async (shopId: string) => {
+  const handleSync = async (shopId: Id<"shops">) => {
     setSyncing(shopId);
     try {
-      await triggerSync({ shopId: shopId as any });
+      await triggerSync({ shopId });
     } finally {
       setSyncing(null);
     }
