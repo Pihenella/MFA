@@ -1,5 +1,8 @@
 "use client";
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { format, subDays } from "date-fns";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
@@ -19,11 +22,15 @@ const PREV_END = format(subDays(new Date(), 7), "yyyy-MM-dd");
 const PREV_START = format(subDays(new Date(), 13), "yyyy-MM-dd");
 
 export default function DashboardPage() {
+  const shops = useQuery(api.shops.list) ?? [];
+  const [selectedShop, setSelectedShop] = useState<string>("");
+  const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
+
   const [period, setPeriod] = useState({ from: WEEK_AGO, to: TODAY });
   const [comparePeriod, setComparePeriod] = useState({ from: PREV_START, to: PREV_END });
   const [tab, setTab] = useState<"all" | "wb" | "ozon">("all");
 
-  const { now, prev } = useDashboardData(period, comparePeriod);
+  const { now, prev } = useDashboardData(period, comparePeriod, shopId);
 
   const mNow = computeDashboardMetrics(now);
   const mPrev = computeDashboardMetrics(prev);
@@ -33,7 +40,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Дашборд</h1>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="mt-2">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "all" | "wb" | "ozon")} className="mt-2">
             <TabsList>
               <TabsTrigger value="all">Общий</TabsTrigger>
               <TabsTrigger value="wb">Wildberries</TabsTrigger>
@@ -41,6 +48,14 @@ export default function DashboardPage() {
             </TabsList>
           </Tabs>
         </div>
+        <select
+          className="border rounded-md px-3 py-2 text-sm"
+          value={selectedShop}
+          onChange={(e) => setSelectedShop(e.target.value)}
+        >
+          <option value="">Все магазины</option>
+          {shops.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+        </select>
       </div>
 
       <PeriodSelector
