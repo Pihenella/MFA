@@ -8,10 +8,15 @@ export const getReports = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    if (shopId) {
+      return await ctx.db
+        .query("financials")
+        .withIndex("by_shop_date", (q) =>
+          q.eq("shopId", shopId).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+        )
+        .collect();
+    }
     const rows = await ctx.db.query("financials").collect();
-    return rows.filter((r) => {
-      const matchShop = shopId ? r.shopId === shopId : true;
-      return matchShop && r.dateFrom >= dateFrom && r.dateFrom <= dateTo;
-    });
+    return rows.filter((r) => r.dateFrom >= dateFrom && r.dateFrom <= dateTo);
   },
 });
