@@ -8,11 +8,16 @@ export const getOrders = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    if (shopId) {
+      return await ctx.db
+        .query("orders")
+        .withIndex("by_shop_date", (q) =>
+          q.eq("shopId", shopId).gte("date", dateFrom).lte("date", dateTo)
+        )
+        .collect();
+    }
     const results = await ctx.db.query("orders").collect();
-    return results.filter((o) => {
-      const matchShop = shopId ? o.shopId === shopId : true;
-      return matchShop && o.date >= dateFrom && o.date <= dateTo;
-    });
+    return results.filter((o) => o.date >= dateFrom && o.date <= dateTo);
   },
 });
 
@@ -23,11 +28,16 @@ export const getSales = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    if (shopId) {
+      return await ctx.db
+        .query("sales")
+        .withIndex("by_shop_date", (q) =>
+          q.eq("shopId", shopId).gte("date", dateFrom).lte("date", dateTo)
+        )
+        .collect();
+    }
     const results = await ctx.db.query("sales").collect();
-    return results.filter((s) => {
-      const matchShop = shopId ? s.shopId === shopId : true;
-      return matchShop && s.date >= dateFrom && s.date <= dateTo;
-    });
+    return results.filter((s) => s.date >= dateFrom && s.date <= dateTo);
   },
 });
 
@@ -38,11 +48,16 @@ export const getFinancials = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    if (shopId) {
+      return await ctx.db
+        .query("financials")
+        .withIndex("by_shop_date", (q) =>
+          q.eq("shopId", shopId).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+        )
+        .collect();
+    }
     const results = await ctx.db.query("financials").collect();
-    return results.filter((f) => {
-      const matchShop = shopId ? f.shopId === shopId : true;
-      return matchShop && f.dateFrom >= dateFrom && f.dateFrom <= dateTo;
-    });
+    return results.filter((f) => f.dateFrom >= dateFrom && f.dateFrom <= dateTo);
   },
 });
 
@@ -51,8 +66,13 @@ export const getCosts = query({
     shopId: v.optional(v.id("shops")),
   },
   handler: async (ctx, { shopId }) => {
-    const results = await ctx.db.query("costs").collect();
-    return shopId ? results.filter((c) => c.shopId === shopId) : results;
+    if (shopId) {
+      return await ctx.db
+        .query("costs")
+        .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+        .collect();
+    }
+    return await ctx.db.query("costs").collect();
   },
 });
 
@@ -63,11 +83,20 @@ export const getCampaigns = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    if (shopId) {
+      const results = await ctx.db
+        .query("campaigns")
+        .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+        .collect();
+      return results.filter((c) => {
+        const d = new Date(c.updatedAt).toISOString().slice(0, 10);
+        return d >= dateFrom && d <= dateTo;
+      });
+    }
     const results = await ctx.db.query("campaigns").collect();
     return results.filter((c) => {
-      const matchShop = shopId ? c.shopId === shopId : true;
       const d = new Date(c.updatedAt).toISOString().slice(0, 10);
-      return matchShop && d >= dateFrom && d <= dateTo;
+      return d >= dateFrom && d <= dateTo;
     });
   },
 });

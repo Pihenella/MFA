@@ -48,3 +48,15 @@ export const updateLastSync = internalMutation({
     await ctx.db.patch(id, { lastSyncAt: Date.now() });
   },
 });
+
+export const getSyncLog = query({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
+    const logs = await ctx.db
+      .query("syncLog")
+      .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+      .order("desc")
+      .take(20);
+    return logs;
+  },
+});
