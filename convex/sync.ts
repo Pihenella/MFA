@@ -101,15 +101,20 @@ export const upsertSales = internalMutation({
   },
 });
 
-export const upsertStocks = internalMutation({
-  args: { shopId: v.id("shops"), stocks: v.array(v.any()) },
-  handler: async (ctx, { shopId, stocks }) => {
-    // Clear existing stocks for shop, re-insert fresh
+export const clearStocks = internalMutation({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
     const existing = await ctx.db
       .query("stocks")
       .withIndex("by_shop", (q) => q.eq("shopId", shopId))
       .collect();
     for (const e of existing) await ctx.db.delete(e._id);
+  },
+});
+
+export const insertStocks = internalMutation({
+  args: { shopId: v.id("shops"), stocks: v.array(v.any()) },
+  handler: async (ctx, { shopId, stocks }) => {
     for (const s of stocks) {
       await ctx.db.insert("stocks", {
         shopId,
@@ -271,7 +276,7 @@ export const syncShop = internalAction({
       });
     }
 
-    // 3. Stocks
+    // 3. Stocks (clear once, then batch insert)
     try {
       const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=${fiveDaysAgo}T00:00:00`,
@@ -279,9 +284,10 @@ export const syncShop = internalAction({
       );
       await assertOk(res);
       const data = await res.json();
+      await ctx.runMutation(internal.sync.clearStocks, { shopId });
       const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
       for (const batch of batches) {
-        await ctx.runMutation(internal.sync.upsertStocks, { shopId, stocks: batch });
+        await ctx.runMutation(internal.sync.insertStocks, { shopId, stocks: batch });
       }
       await ctx.runMutation(internal.sync.logSync, {
         shopId, endpoint: "stocks", status: "ok" as const, count: data.length ?? 0,
