@@ -2,6 +2,43 @@ import { internalMutation, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
+// ---- Helpers ----
+
+export function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+const BATCH_SIZE = 50;
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 1,
+): Promise<Response> {
+  const res = await fetch(url, options);
+  if ((res.status === 429 || res.status >= 500) && retries > 0) {
+    await new Promise((r) => setTimeout(r, 1000));
+    return fetchWithRetry(url, options, retries - 1);
+  }
+  return res;
+}
+
+async function assertOk(res: Response): Promise<void> {
+  if (!res.ok) {
+    let body = "";
+    try {
+      body = await res.text();
+    } catch {
+      // ignore
+    }
+    throw new Error(`HTTP ${res.status}: ${body.slice(0, 500)}`);
+  }
+}
+
 // ---- Upsert mutations (called by action) ----
 
 export const upsertOrders = internalMutation({
@@ -136,15 +173,49 @@ export const upsertFinancials = internalMutation({
   },
 });
 
+export const upsertCampaigns = internalMutation({
+  args: { shopId: v.id("shops"), campaigns: v.array(v.any()) },
+  handler: async (ctx, { shopId, campaigns }) => {
+    for (const c of campaigns) {
+      const existing = await ctx.db
+        .query("campaigns")
+        .withIndex("by_campaign_id", (q) => q.eq("campaignId", c.campaignId))
+        .first();
+      const row = {
+        shopId,
+        campaignId: c.campaignId,
+        name: c.name ?? "",
+        budget: c.budget ?? 0,
+        spent: c.spent ?? 0,
+        impressions: c.impressions ?? 0,
+        clicks: c.clicks ?? 0,
+        updatedAt: Date.now(),
+      };
+      if (existing) {
+        await ctx.db.patch(existing._id, row);
+      } else {
+        await ctx.db.insert("campaigns", row);
+      }
+    }
+  },
+});
+
 export const logSync = internalMutation({
   args: {
     shopId: v.id("shops"),
     endpoint: v.string(),
     status: v.union(v.literal("ok"), v.literal("error")),
     error: v.optional(v.string()),
+    count: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("syncLog", { ...args, syncedAt: Date.now() });
+    await ctx.db.insert("syncLog", {
+      shopId: args.shopId,
+      endpoint: args.endpoint,
+      status: args.status,
+      error: args.error,
+      syncedAt: Date.now(),
+    });
   },
 });
 
@@ -153,79 +224,176 @@ export const logSync = internalMutation({
 export const syncShop = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
-    const headers = { Authorization: apiKey };
+    const headers: Record<string, string> = { Authorization: apiKey };
     const today = new Date().toISOString().slice(0, 10);
     const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
     // 1. Orders
     try {
-      const res = await fetch(
+      const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=${fiveDaysAgo}T00:00:00`,
-        { headers }
+        { headers },
       );
-      if (res.ok) {
-        const data = await res.json();
-        await ctx.runMutation(internal.sync.upsertOrders, { shopId, orders: data });
-        await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "orders", status: "ok" });
-      } else {
-        throw new Error(`HTTP ${res.status}`);
+      await assertOk(res);
+      const data = await res.json();
+      const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
+      for (const batch of batches) {
+        await ctx.runMutation(internal.sync.upsertOrders, { shopId, orders: batch });
       }
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "orders", status: "ok" as const, count: data.length ?? 0,
+      });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "orders", status: "error", error: e.message });
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "orders", status: "error" as const, error: e.message,
+      });
     }
 
     // 2. Sales
     try {
-      const res = await fetch(
+      const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/sales?dateFrom=${fiveDaysAgo}T00:00:00`,
-        { headers }
+        { headers },
       );
-      if (res.ok) {
-        const data = await res.json();
-        await ctx.runMutation(internal.sync.upsertSales, { shopId, sales: data });
-        await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "sales", status: "ok" });
-      } else {
-        throw new Error(`HTTP ${res.status}`);
+      await assertOk(res);
+      const data = await res.json();
+      const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
+      for (const batch of batches) {
+        await ctx.runMutation(internal.sync.upsertSales, { shopId, sales: batch });
       }
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "sales", status: "ok" as const, count: data.length ?? 0,
+      });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "sales", status: "error", error: e.message });
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "sales", status: "error" as const, error: e.message,
+      });
     }
 
     // 3. Stocks
     try {
-      const res = await fetch(
+      const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=${fiveDaysAgo}T00:00:00`,
-        { headers }
+        { headers },
       );
-      if (res.ok) {
-        const data = await res.json();
-        await ctx.runMutation(internal.sync.upsertStocks, { shopId, stocks: data });
-        await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "stocks", status: "ok" });
-      } else {
-        throw new Error(`HTTP ${res.status}`);
+      await assertOk(res);
+      const data = await res.json();
+      const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
+      for (const batch of batches) {
+        await ctx.runMutation(internal.sync.upsertStocks, { shopId, stocks: batch });
       }
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "stocks", status: "ok" as const, count: data.length ?? 0,
+      });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "stocks", status: "error", error: e.message });
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "stocks", status: "error" as const, error: e.message,
+      });
     }
 
-    // 4. Financial reports
+    // 4. Financial reports (paginated via rrdid)
     try {
-      const res = await fetch(
-        `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${thirtyDaysAgo}&dateTo=${today}&limit=100000`,
-        { headers }
-      );
-      if (res.ok) {
+      let rrdid = 0;
+      let totalCount = 0;
+      while (true) {
+        const res = await fetchWithRetry(
+          `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${thirtyDaysAgo}&dateTo=${today}&limit=1000&rrdid=${rrdid}`,
+          { headers },
+        );
+        await assertOk(res);
         const data = await res.json();
-        if (Array.isArray(data)) {
-          await ctx.runMutation(internal.sync.upsertFinancials, { shopId, rows: data });
+        if (!Array.isArray(data) || data.length === 0) break;
+        totalCount += data.length;
+        const batches = chunk(data, BATCH_SIZE);
+        for (const batch of batches) {
+          await ctx.runMutation(internal.sync.upsertFinancials, { shopId, rows: batch });
         }
-        await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "financials", status: "ok" });
+        rrdid = data[data.length - 1].rrd_id;
+        if (data.length < 1000) break;
+      }
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "financials", status: "ok" as const, count: totalCount,
+      });
+    } catch (e: any) {
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "financials", status: "error" as const, error: e.message,
+      });
+    }
+
+    // 5. Advertising campaigns
+    try {
+      // Fetch campaign list (active=7, paused=9, completed=11)
+      const listRes = await fetchWithRetry(
+        `https://advert-api.wildberries.ru/adv/v1/promotion/adverts?status=7&status=9&status=11`,
+        { headers },
+      );
+      await assertOk(listRes);
+      const adverts: any[] = await listRes.json();
+      if (Array.isArray(adverts) && adverts.length > 0) {
+        const campaignIds = adverts.map((a: any) => a.advertId);
+        // Fetch full stats in batches of 100 (API limit)
+        const allCampaigns: any[] = [];
+        const idBatches = chunk(campaignIds, 100);
+        for (const idBatch of idBatches) {
+          const statsRes = await fetchWithRetry(
+            `https://advert-api.wildberries.ru/adv/v2/fullstats`,
+            {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify(idBatch),
+            },
+          );
+          if (!statsRes.ok) continue;
+          const statsData: any[] = await statsRes.json();
+          if (!Array.isArray(statsData)) continue;
+          for (const stat of statsData) {
+            const advert = adverts.find((a: any) => a.advertId === stat.advertId);
+            // Sum stats across all days/apps/platforms
+            let impressions = 0;
+            let clicks = 0;
+            let spent = 0;
+            if (Array.isArray(stat.days)) {
+              for (const day of stat.days) {
+                if (Array.isArray(day.apps)) {
+                  for (const app of day.apps) {
+                    if (Array.isArray(app.nm)) {
+                      for (const nm of app.nm) {
+                        impressions += nm.views ?? 0;
+                        clicks += nm.clicks ?? 0;
+                        spent += nm.sum ?? 0;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            allCampaigns.push({
+              campaignId: stat.advertId,
+              name: advert?.name ?? advert?.changeTime ?? `Campaign ${stat.advertId}`,
+              budget: advert?.dailyBudget ?? 0,
+              spent,
+              impressions,
+              clicks,
+            });
+          }
+        }
+        const campaignBatches = chunk(allCampaigns, BATCH_SIZE);
+        for (const batch of campaignBatches) {
+          await ctx.runMutation(internal.sync.upsertCampaigns, { shopId, campaigns: batch });
+        }
+        await ctx.runMutation(internal.sync.logSync, {
+          shopId, endpoint: "campaigns", status: "ok" as const, count: allCampaigns.length,
+        });
       } else {
-        throw new Error(`HTTP ${res.status}`);
+        await ctx.runMutation(internal.sync.logSync, {
+          shopId, endpoint: "campaigns", status: "ok" as const, count: 0,
+        });
       }
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.logSync, { shopId, endpoint: "financials", status: "error", error: e.message });
+      await ctx.runMutation(internal.sync.logSync, {
+        shopId, endpoint: "campaigns", status: "error" as const, error: e.message,
+      });
     }
 
     // Update lastSyncAt

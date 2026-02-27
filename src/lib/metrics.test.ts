@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeDashboardMetrics } from "./metrics";
+import { chunk } from "../../convex/sync";
 
 const makeSale = (overrides = {}) => ({
   nmId: 1,
@@ -9,6 +10,24 @@ const makeSale = (overrides = {}) => ({
   isReturn: false,
   date: "2026-02-16",
   ...overrides,
+});
+
+describe("chunk", () => {
+  it("splits array into chunks of given size", () => {
+    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+
+  it("returns single chunk when array is smaller than size", () => {
+    expect(chunk([1, 2], 5)).toEqual([[1, 2]]);
+  });
+
+  it("returns empty array for empty input", () => {
+    expect(chunk([], 3)).toEqual([]);
+  });
+
+  it("handles exact multiples", () => {
+    expect(chunk([1, 2, 3, 4], 2)).toEqual([[1, 2], [3, 4]]);
+  });
 });
 
 describe("computeDashboardMetrics", () => {
