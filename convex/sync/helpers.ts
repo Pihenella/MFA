@@ -1,0 +1,56 @@
+import { internalMutation } from "../_generated/server";
+import { v } from "convex/values";
+
+export function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+export const BATCH_SIZE = 50;
+
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 1,
+): Promise<Response> {
+  const res = await fetch(url, options);
+  if ((res.status === 429 || res.status >= 500) && retries > 0) {
+    await new Promise((r) => setTimeout(r, 1000));
+    return fetchWithRetry(url, options, retries - 1);
+  }
+  return res;
+}
+
+export async function assertOk(res: Response): Promise<void> {
+  if (!res.ok) {
+    let body = "";
+    try {
+      body = await res.text();
+    } catch {
+      // ignore
+    }
+    throw new Error(`HTTP ${res.status}: ${body.slice(0, 500)}`);
+  }
+}
+
+export const logSync = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+    endpoint: v.string(),
+    status: v.union(v.literal("ok"), v.literal("error")),
+    error: v.optional(v.string()),
+    count: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("syncLog", {
+      shopId: args.shopId,
+      endpoint: args.endpoint,
+      status: args.status,
+      error: args.error,
+      syncedAt: Date.now(),
+    });
+  },
+});

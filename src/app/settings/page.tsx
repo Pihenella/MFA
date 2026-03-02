@@ -8,15 +8,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, RefreshCw, ChevronDown, ChevronUp, Info } from "lucide-react";
 
-const ENDPOINTS = ["orders", "sales", "stocks", "financials", "campaigns"] as const;
+const ALL_ENDPOINTS = [
+  "orders", "sales", "stocks", "financials", "campaigns",
+  "content", "analytics", "feedbacks", "questions", "prices", "returns", "tariffs",
+] as const;
+
+const CATEGORIES = [
+  { id: "statistics", label: "Статистика", description: "Заказы, продажи, остатки, финансовые отчёты" },
+  { id: "promotion", label: "Продвижение", description: "Рекламные кампании и статистика" },
+  { id: "content", label: "Контент", description: "Карточки товаров, фото, описания" },
+  { id: "analytics", label: "Аналитика", description: "NM отчёты: просмотры, корзина, конверсии" },
+  { id: "feedbacks", label: "Отзывы и вопросы", description: "Отзывы и вопросы покупателей" },
+  { id: "prices", label: "Цены и скидки", description: "Актуальные цены, скидки и промокоды" },
+  { id: "returns", label: "Возвраты", description: "Возвраты товаров" },
+  { id: "tariffs", label: "Тарифы", description: "Тарифы на логистику и хранение" },
+] as const;
+
+const DEFAULT_CATEGORIES = ["statistics", "promotion"];
 
 function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
   const logs = useQuery(api.shops.getSyncLog, { shopId }) ?? [];
   const [expanded, setExpanded] = useState(false);
 
-  // Get latest log per endpoint
   const latestByEndpoint = new Map<string, (typeof logs)[number]>();
   for (const log of logs) {
     if (!latestByEndpoint.has(log.endpoint)) {
@@ -31,7 +46,7 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
   return (
     <div className="mt-3 border-t pt-3">
       <div className="flex flex-wrap gap-2 items-center">
-        {ENDPOINTS.map((ep) => {
+        {ALL_ENDPOINTS.map((ep) => {
           const log = latestByEndpoint.get(ep);
           if (!log) return (
             <Badge key={ep} variant="outline" className="text-gray-400">
@@ -82,6 +97,41 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
   );
 }
 
+function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current: string[] }) {
+  const updateCategories = useMutation(api.shops.updateCategories);
+  const [categories, setCategories] = useState<string[]>(current);
+
+  const toggle = async (catId: string) => {
+    const next = categories.includes(catId)
+      ? categories.filter((c) => c !== catId)
+      : [...categories, catId];
+    setCategories(next);
+    await updateCategories({ id: shopId, enabledCategories: next });
+  };
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="text-xs font-medium text-gray-500 mb-2">Категории API для синхронизации:</div>
+      <div className="grid grid-cols-2 gap-2">
+        {CATEGORIES.map((cat) => (
+          <label key={cat.id} className="flex items-start gap-2 text-sm cursor-pointer hover:bg-gray-50 rounded p-1.5">
+            <input
+              type="checkbox"
+              checked={categories.includes(cat.id)}
+              onChange={() => toggle(cat.id)}
+              className="mt-0.5 accent-violet-600"
+            />
+            <div>
+              <div className="font-medium">{cat.label}</div>
+              <div className="text-xs text-gray-400">{cat.description}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const shops = useQuery(api.shops.list) ?? [];
   const addShop = useMutation(api.shops.add);
@@ -122,8 +172,16 @@ export default function SettingsPage() {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Мой магазин WB" />
           </div>
           <div className="space-y-1">
-            <Label>API ключ Wildberries (Статистика)</Label>
+            <Label>API ключ Wildberries (все разрешения)</Label>
             <Input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="eyJhb..." type="password" />
+          </div>
+          <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-md p-2.5">
+            <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+            <span>
+              Создайте один ключ со всеми разрешениями в{" "}
+              <span className="font-medium">ЛК WB &rarr; Настройки &rarr; Доступ к API</span>.
+              После добавления магазина выберите нужные категории данных ниже.
+            </span>
           </div>
           <Button onClick={handleAdd} className="bg-violet-600 hover:bg-violet-700">
             Добавить
@@ -165,6 +223,10 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
+              <CategoryCheckboxes
+                shopId={shop._id}
+                current={shop.enabledCategories ?? DEFAULT_CATEGORIES}
+              />
               <SyncStatus shopId={shop._id} />
             </CardContent>
           </Card>

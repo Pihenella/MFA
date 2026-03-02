@@ -9,6 +9,7 @@ export const syncAll = internalAction({
       await ctx.runAction(internal.sync.syncShop, {
         shopId: shop._id,
         apiKey: shop.apiKey,
+        enabledCategories: shop.enabledCategories ?? undefined,
       });
     }
   },

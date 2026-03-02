@@ -16,6 +16,9 @@ const WB_MENU = [
   { label: "Аналитика продаж", href: "/analytics" },
   { label: "Товары", href: "/products" },
   { label: "Финансовые отчеты", href: "/financials" },
+  { label: "Отзывы и вопросы", href: "/feedbacks" },
+  { label: "Возвраты", href: "/returns" },
+  { label: "Цены", href: "/prices" },
 ];
 
 export function TopNav() {

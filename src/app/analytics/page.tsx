@@ -21,6 +21,10 @@ const COLUMNS: { key: SortKey; label: string; unit?: string }[] = [
   { key: "nmId", label: "nmId" },
   { key: "supplierArticle", label: "Артикул" },
   { key: "subject", label: "Предмет" },
+  { key: "views", label: "Просмотры", unit: "шт" },
+  { key: "addToCart", label: "В корзину", unit: "шт" },
+  { key: "addToCartRate", label: "Конв. корзина", unit: "%" },
+  { key: "cartToOrderRate", label: "Конв. заказ", unit: "%" },
   { key: "salesRevenue", label: "Выручка", unit: "₽" },
   { key: "salesCount", label: "Продажи", unit: "шт" },
   { key: "returnsCount", label: "Возвраты", unit: "шт" },
@@ -59,10 +63,11 @@ export default function AnalyticsPage() {
   const financials = useQuery(api.dashboard.getFinancials, { shopId, dateFrom: period.from, dateTo: period.to }) ?? [];
   const costs = useQuery(api.dashboard.getCosts, { shopId }) ?? [];
   const campaigns = useQuery(api.dashboard.getCampaigns, { shopId, dateFrom: period.from, dateTo: period.to }) ?? [];
+  const nmReports = useQuery(api.dashboard.getNmReports, { shopId }) ?? [];
 
   const products = useMemo(
-    () => computeProductMetrics({ sales, financials, costs, campaigns }),
-    [sales, financials, costs, campaigns],
+    () => computeProductMetrics({ sales, financials, costs, campaigns, nmReports }),
+    [sales, financials, costs, campaigns, nmReports],
   );
 
   const filtered = useMemo(() => {
@@ -89,11 +94,14 @@ export default function AnalyticsPage() {
 
   const totals = useMemo(() => {
     const t = {
+      views: 0, addToCart: 0, addToCartRate: 0, cartToOrderRate: 0,
       salesRevenue: 0, salesCount: 0, returnsCount: 0, returnRate: 0,
       cogs: 0, grossProfit: 0, commission: 0, logistics: 0,
       storage: 0, penalties: 0, ads: 0, profit: 0, profitPercent: 0, roi: 0,
     };
     for (const p of filtered) {
+      t.views += p.views;
+      t.addToCart += p.addToCart;
       t.salesRevenue += p.salesRevenue;
       t.salesCount += p.salesCount;
       t.returnsCount += p.returnsCount;
@@ -109,6 +117,8 @@ export default function AnalyticsPage() {
     t.returnRate = t.salesCount > 0 ? (t.returnsCount / t.salesCount) * 100 : 0;
     t.profitPercent = t.salesRevenue > 0 ? (t.profit / t.salesRevenue) * 100 : 0;
     t.roi = t.cogs > 0 ? (t.profit / t.cogs) * 100 : 0;
+    t.addToCartRate = t.views > 0 ? (t.addToCart / t.views) * 100 : 0;
+    t.cartToOrderRate = t.addToCart > 0 ? (t.salesCount / t.addToCart) * 100 : 0;
     return t;
   }, [filtered]);
 
@@ -173,11 +183,21 @@ export default function AnalyticsPage() {
                 <td className="px-3 py-2 font-mono text-xs">{p.nmId}</td>
                 <td className="px-3 py-2 text-xs">{p.supplierArticle}</td>
                 <td className="px-3 py-2 text-xs">{p.subject}</td>
+                <td className="px-3 py-2 text-xs text-right">{fmt(p.views, "шт")}</td>
+                <td className="px-3 py-2 text-xs text-right">{fmt(p.addToCart, "шт")}</td>
+                <td className="px-3 py-2 text-xs text-right">{fmt(p.addToCartRate, "%")}</td>
+                <td className="px-3 py-2 text-xs text-right">{fmt(p.cartToOrderRate, "%")}</td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.salesRevenue, "₽")}</td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.salesCount, "шт")}</td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.returnsCount, "шт")}</td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.returnRate, "%")}</td>
-                <td className="px-3 py-2 text-xs text-right">{fmt(p.cogs, "₽")}</td>
+                <td className="px-3 py-2 text-xs text-right">
+                  {p.salesCount > 0 && p.cogs === 0 ? (
+                    <span className="text-red-500 font-medium">! 0 ₽</span>
+                  ) : (
+                    fmt(p.cogs, "₽")
+                  )}
+                </td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.grossProfit, "₽")}</td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.commission, "₽")}</td>
                 <td className="px-3 py-2 text-xs text-right">{fmt(p.logistics, "₽")}</td>
@@ -199,6 +219,10 @@ export default function AnalyticsPage() {
           <tfoot>
             <tr className="bg-gray-50 font-semibold border-t border-gray-200">
               <td className="px-3 py-2 text-xs" colSpan={3}>Итого ({filtered.length} товаров)</td>
+              <td className="px-3 py-2 text-xs text-right">{fmt(totals.views, "шт")}</td>
+              <td className="px-3 py-2 text-xs text-right">{fmt(totals.addToCart, "шт")}</td>
+              <td className="px-3 py-2 text-xs text-right">{fmt(totals.addToCartRate, "%")}</td>
+              <td className="px-3 py-2 text-xs text-right">{fmt(totals.cartToOrderRate, "%")}</td>
               <td className="px-3 py-2 text-xs text-right">{fmt(totals.salesRevenue, "₽")}</td>
               <td className="px-3 py-2 text-xs text-right">{fmt(totals.salesCount, "шт")}</td>
               <td className="px-3 py-2 text-xs text-right">{fmt(totals.returnsCount, "шт")}</td>

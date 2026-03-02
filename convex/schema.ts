@@ -7,6 +7,7 @@ export default defineSchema({
     apiKey: v.string(),
     isActive: v.boolean(),
     lastSyncAt: v.optional(v.number()),
+    enabledCategories: v.optional(v.array(v.string())),
   }),
 
   orders: defineTable({
@@ -104,4 +105,88 @@ export default defineSchema({
     error: v.optional(v.string()),
   }).index("by_shop", ["shopId"])
     .index("by_synced_at", ["syncedAt"]),
+
+  // --- New tables for extended WB API categories ---
+
+  productCards: defineTable({
+    shopId: v.id("shops"),
+    nmId: v.number(),
+    title: v.string(),
+    brand: v.string(),
+    vendorCode: v.string(),
+    subjectName: v.string(),
+    photos: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index("by_shop", ["shopId"])
+    .index("by_shop_nm", ["shopId", "nmId"]),
+
+  feedbacks: defineTable({
+    shopId: v.id("shops"),
+    feedbackId: v.string(),
+    nmId: v.number(),
+    text: v.string(),
+    productValuation: v.number(),
+    answer: v.optional(v.string()),
+    createdDate: v.string(),
+    isAnswered: v.boolean(),
+  }).index("by_shop", ["shopId"])
+    .index("by_feedback_id", ["feedbackId"]),
+
+  questions: defineTable({
+    shopId: v.id("shops"),
+    questionId: v.string(),
+    nmId: v.number(),
+    text: v.string(),
+    answer: v.optional(v.string()),
+    createdDate: v.string(),
+    isAnswered: v.boolean(),
+  }).index("by_shop", ["shopId"])
+    .index("by_question_id", ["questionId"]),
+
+  prices: defineTable({
+    shopId: v.id("shops"),
+    nmId: v.number(),
+    supplierArticle: v.string(),
+    price: v.number(),
+    discount: v.number(),
+    promoCode: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_shop", ["shopId"])
+    .index("by_shop_nm", ["shopId", "nmId"]),
+
+  returns: defineTable({
+    shopId: v.id("shops"),
+    returnId: v.string(),
+    nmId: v.number(),
+    orderId: v.string(),
+    returnDate: v.string(),
+    warehouseName: v.string(),
+    status: v.string(),
+  }).index("by_shop", ["shopId"])
+    .index("by_return_id", ["returnId"]),
+
+  tariffs: defineTable({
+    shopId: v.id("shops"),
+    warehouseName: v.string(),
+    boxDeliveryBase: v.number(),
+    boxDeliveryLiter: v.number(),
+    boxStorageBase: v.number(),
+    boxStorageLiter: v.number(),
+    updatedAt: v.number(),
+  }).index("by_shop", ["shopId"]),
+
+  nmReports: defineTable({
+    shopId: v.id("shops"),
+    nmId: v.number(),
+    openCardCount: v.number(),
+    addToCartCount: v.number(),
+    ordersCount: v.number(),
+    buyoutsCount: v.number(),
+    convOpenToCart: v.number(),
+    convCartToOrder: v.number(),
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    updatedAt: v.number(),
+  }).index("by_shop", ["shopId"])
+    .index("by_shop_nm", ["shopId", "nmId"]),
 });

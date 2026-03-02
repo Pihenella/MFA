@@ -6,8 +6,9 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload, Save } from "lucide-react";
+import { Upload, Save, Download, AlertTriangle } from "lucide-react";
 import * as XLSX from "xlsx";
+import { parseSimpleCostFile, isRealizationReport, parseRealizationReport } from "@/lib/costUploadParser";
 
 export default function ProductsPage() {
   const shops = useQuery(api.shops.list) ?? [];
@@ -23,6 +24,11 @@ export default function ProductsPage() {
     shopId ? { shopId } : "skip"
   ) ?? [];
 
+  const productCards = useQuery(
+    api.dashboard.getProductCards,
+    shopId ? { shopId } : "skip"
+  ) ?? [];
+
   const upsertCost = useMutation(api.costs.upsertCost);
   const upsertBulk = useMutation(api.costs.upsertBulk);
 
@@ -30,11 +36,15 @@ export default function ProductsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const costMap = new Map(costs.map((c) => [c.nmId, c.cost]));
+  const cardMap = new Map(productCards.map((c) => [c.nmId, c]));
 
   // Deduplicate stocks by nmId
   const uniqueArticles = Array.from(
     new Map(stocks.map((s) => [s.nmId, s])).values()
   );
+
+  const costCount = uniqueArticles.filter((a) => costMap.has(a.nmId) && (costMap.get(a.nmId) ?? 0) > 0).length;
+  const totalCount = uniqueArticles.length;
 
   const handleSave = async (nmId: number, supplierArticle: string) => {
     const val = parseFloat(editMap[nmId] ?? "0");
@@ -49,19 +59,41 @@ export default function ProductsPage() {
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf);
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows: any[] = XLSX.utils.sheet_to_json(ws);
-    const items = rows
-      .filter((r) => r.nmId && r.cost)
-      .map((r) => ({
-        nmId: Number(r.nmId),
-        supplierArticle: String(r.supplierArticle ?? ""),
-        cost: Number(r.cost),
-      }));
+    const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws);
+
+    if (isRealizationReport(rows)) {
+      const catalog = parseRealizationReport(rows);
+      if (catalog.length > 0) {
+        alert(
+          `Обнаружен отчёт реализации WB. Найдено ${catalog.length} товаров.\n` +
+          `Этот формат не содержит себестоимость — заполните её вручную или загрузите файл с колонкой "Себестоимость".`
+        );
+      }
+      e.target.value = "";
+      return;
+    }
+
+    const items = parseSimpleCostFile(rows);
     if (items.length > 0) {
       await upsertBulk({ shopId, items });
-      alert(`Загружено ${items.length} записей`);
+      alert(`Загружено ${items.length} записей себестоимости`);
+    } else {
+      alert("Не удалось распознать данные. Убедитесь, что файл содержит колонки nmId/Артикул WB и cost/Себестоимость.");
     }
     e.target.value = "";
+  };
+
+  const handleDownloadTemplate = () => {
+    const data = uniqueArticles.map((s) => ({
+      nmId: s.nmId,
+      "Артикул поставщика": s.supplierArticle,
+      "Предмет": s.subject,
+      "Себестоимость": costMap.get(s.nmId) ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Себестоимость");
+    XLSX.writeFile(wb, "cost_template.xlsx");
   };
 
   return (
@@ -76,6 +108,9 @@ export default function ProductsPage() {
           >
             {shops.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
+          <Button variant="outline" onClick={handleDownloadTemplate} disabled={uniqueArticles.length === 0}>
+            <Download className="h-4 w-4 mr-2" /> Скачать шаблон
+          </Button>
           <Button variant="outline" onClick={() => fileRef.current?.click()}>
             <Upload className="h-4 w-4 mr-2" /> Загрузить CSV/Excel
           </Button>
@@ -83,8 +118,25 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {totalCount > 0 && (
+        <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg border ${
+          costCount === totalCount
+            ? "bg-green-50 border-green-200 text-green-800"
+            : "bg-amber-50 border-amber-200 text-amber-800"
+        }`}>
+          {costCount < totalCount && <AlertTriangle className="h-4 w-4" />}
+          Себестоимость указана: {costCount} из {totalCount} товаров
+          {costCount < totalCount && (
+            <span className="text-xs ml-2">— расчёты прибыли, ROI и маржи будут некорректны для товаров без себестоимости</span>
+          )}
+        </div>
+      )}
+
       <div className="text-sm text-gray-500">
-        CSV формат: колонки <code className="bg-gray-100 px-1 rounded">nmId</code>, <code className="bg-gray-100 px-1 rounded">supplierArticle</code>, <code className="bg-gray-100 px-1 rounded">cost</code>
+        Формат файла: колонки{" "}
+        <code className="bg-gray-100 px-1 rounded">nmId</code> (или <code className="bg-gray-100 px-1 rounded">Артикул WB</code>),{" "}
+        <code className="bg-gray-100 px-1 rounded">cost</code> (или <code className="bg-gray-100 px-1 rounded">Себестоимость</code>).
+        Необязательно: <code className="bg-gray-100 px-1 rounded">supplierArticle</code> (или <code className="bg-gray-100 px-1 rounded">Артикул поставщика</code>).
       </div>
 
       <Card>
@@ -92,9 +144,11 @@ export default function ProductsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
+                <th className="pb-2 w-12"></th>
                 <th className="pb-2">Артикул WB</th>
                 <th className="pb-2">Артикул продавца</th>
                 <th className="pb-2">Товар</th>
+                <th className="pb-2">Бренд</th>
                 <th className="pb-2 text-right">Себестоимость, ₽</th>
                 <th className="pb-2"></th>
               </tr>
@@ -104,11 +158,21 @@ export default function ProductsPage() {
                 const currentCost = costMap.get(s.nmId);
                 const editVal = editMap[s.nmId] ?? String(currentCost ?? "");
                 const isDirty = editMap[s.nmId] !== undefined;
+                const card = cardMap.get(s.nmId);
+                const photo = card?.photos?.[0];
                 return (
                   <tr key={s.nmId} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="py-2 w-12">
+                      {photo ? (
+                        <img src={photo} alt="" className="w-10 h-10 rounded object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-gray-100" />
+                      )}
+                    </td>
                     <td className="py-2 font-mono">{s.nmId}</td>
                     <td className="py-2">{s.supplierArticle}</td>
-                    <td className="py-2 text-gray-600">{s.subject}</td>
+                    <td className="py-2 text-gray-600">{card?.title || s.subject}</td>
+                    <td className="py-2 text-gray-500 text-xs">{card?.brand ?? ""}</td>
                     <td className="py-2">
                       <Input
                         type="number"
@@ -129,7 +193,7 @@ export default function ProductsPage() {
                 );
               })}
               {uniqueArticles.length === 0 && (
-                <tr><td colSpan={5} className="py-8 text-center text-gray-400">Нет данных. Добавьте магазин и запустите синхронизацию.</td></tr>
+                <tr><td colSpan={7} className="py-8 text-center text-gray-400">Нет данных. Добавьте магазин и запустите синхронизацию.</td></tr>
               )}
             </tbody>
           </table>

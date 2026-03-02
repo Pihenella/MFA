@@ -10,6 +10,8 @@ import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { computeDashboardMetrics } from "@/lib/metrics";
+import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 
 function pctDelta(now: number, prev: number) {
   if (prev === 0) return now === 0 ? 0 : 100;
@@ -34,6 +36,11 @@ export default function DashboardPage() {
 
   const mNow = computeDashboardMetrics(now);
   const mPrev = computeDashboardMetrics(prev);
+
+  // Count products with sales but no cost
+  const costSet = new Set(now.costs.filter((c) => c.cost > 0).map((c) => c.nmId));
+  const salesNmIds = new Set(now.sales.filter((s) => !s.isReturn).map((s) => s.nmId));
+  const missingCostCount = [...salesNmIds].filter((id) => !costSet.has(id)).length;
 
   return (
     <div className="space-y-6">
@@ -67,6 +74,18 @@ export default function DashboardPage() {
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
         Финансовые данные WB обновляются с задержкой 1–2 недели. Комиссия, логистика, хранение и удержания могут быть неполными для последних дней.
       </div>
+
+      {missingCostCount > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>
+            <strong>{missingCostCount}</strong> {missingCostCount === 1 ? "товар" : missingCostCount < 5 ? "товара" : "товаров"} без себестоимости — расчёты прибыли, ROI и маржи некорректны.{" "}
+            <Link href="/products" className="underline font-medium hover:text-red-900">
+              Загрузить себестоимость
+            </Link>
+          </span>
+        </div>
+      )}
 
       {/* 1. Заказы и отмены */}
       <DashboardSection title="Заказы и отмены">

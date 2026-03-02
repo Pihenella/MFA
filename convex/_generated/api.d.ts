@@ -15,6 +15,15 @@ import type * as dashboard from "../dashboard.js";
 import type * as financials from "../financials.js";
 import type * as shops from "../shops.js";
 import type * as sync from "../sync.js";
+import type * as sync_helpers from "../sync/helpers.js";
+import type * as sync_syncAnalytics from "../sync/syncAnalytics.js";
+import type * as sync_syncContent from "../sync/syncContent.js";
+import type * as sync_syncFeedbacks from "../sync/syncFeedbacks.js";
+import type * as sync_syncPrices from "../sync/syncPrices.js";
+import type * as sync_syncPromotion from "../sync/syncPromotion.js";
+import type * as sync_syncReturns from "../sync/syncReturns.js";
+import type * as sync_syncStatistics from "../sync/syncStatistics.js";
+import type * as sync_syncTariffs from "../sync/syncTariffs.js";
 import type * as syncAll from "../syncAll.js";
 
 import type {
@@ -31,6 +40,15 @@ declare const fullApi: ApiFromModules<{
   financials: typeof financials;
   shops: typeof shops;
   sync: typeof sync;
+  "sync/helpers": typeof sync_helpers;
+  "sync/syncAnalytics": typeof sync_syncAnalytics;
+  "sync/syncContent": typeof sync_syncContent;
+  "sync/syncFeedbacks": typeof sync_syncFeedbacks;
+  "sync/syncPrices": typeof sync_syncPrices;
+  "sync/syncPromotion": typeof sync_syncPromotion;
+  "sync/syncReturns": typeof sync_syncReturns;
+  "sync/syncStatistics": typeof sync_syncStatistics;
+  "sync/syncTariffs": typeof sync_syncTariffs;
   syncAll: typeof syncAll;
 }>;
 

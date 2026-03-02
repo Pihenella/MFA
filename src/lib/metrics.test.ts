@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeDashboardMetrics } from "./metrics";
-import { chunk } from "../../convex/sync";
+import { chunk } from "../../convex/sync/helpers";
 
 const makeSale = (overrides = {}) => ({
   nmId: 1,

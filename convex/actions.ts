@@ -8,6 +8,10 @@ export const triggerSync = action({
     const shops = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
-    await ctx.runAction(internal.sync.syncShop, { shopId, apiKey: shop.apiKey });
+    await ctx.runAction(internal.sync.syncShop, {
+      shopId,
+      apiKey: shop.apiKey,
+      enabledCategories: shop.enabledCategories ?? undefined,
+    });
   },
 });

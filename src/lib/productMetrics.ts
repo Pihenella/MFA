@@ -1,5 +1,15 @@
 import type { Sale, Financial, Cost, Campaign } from "./metrics";
 
+export type NmReport = {
+  nmId: number;
+  openCardCount: number;
+  addToCartCount: number;
+  ordersCount: number;
+  buyoutsCount: number;
+  convOpenToCart: number;
+  convCartToOrder: number;
+};
+
 export type ProductMetrics = {
   nmId: number;
   supplierArticle: string;
@@ -18,6 +28,11 @@ export type ProductMetrics = {
   profit: number;
   profitPercent: number;
   roi: number;
+  // NM Report data
+  views: number;
+  addToCart: number;
+  addToCartRate: number;
+  cartToOrderRate: number;
 };
 
 export type ProductMetricsInput = {
@@ -25,18 +40,28 @@ export type ProductMetricsInput = {
   financials: (Financial & { subject?: string })[];
   costs: Cost[];
   campaigns: (Campaign & { nmId?: number })[];
+  nmReports?: NmReport[];
 };
 
 export function computeProductMetrics(input: ProductMetricsInput): ProductMetrics[] {
-  const { sales, financials, costs, campaigns } = input;
+  const { sales, financials, costs, campaigns, nmReports } = input;
 
   const costMap = new Map<number, number>();
   for (const c of costs) costMap.set(c.nmId, c.cost);
+
+  // NM Reports by nmId
+  const nmReportMap = new Map<number, NmReport>();
+  if (nmReports) {
+    for (const r of nmReports) nmReportMap.set(r.nmId, r);
+  }
 
   // Collect all known nmIds
   const nmIds = new Set<number>();
   for (const s of sales) nmIds.add(s.nmId);
   for (const f of financials) nmIds.add(f.nmId);
+  if (nmReports) {
+    for (const r of nmReports) nmIds.add(r.nmId);
+  }
 
   // Group sales by nmId
   const salesByNm = new Map<number, Sale[]>();
@@ -112,6 +137,13 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
       if (sale) supplierArticle = String(sale.nmId);
     }
 
+    // NM Report data
+    const nmReport = nmReportMap.get(nmId);
+    const views = nmReport?.openCardCount ?? 0;
+    const addToCart = nmReport?.addToCartCount ?? 0;
+    const addToCartRate = nmReport?.convOpenToCart ?? (views > 0 ? (addToCart / views) * 100 : 0);
+    const cartToOrderRate = nmReport?.convCartToOrder ?? 0;
+
     results.push({
       nmId,
       supplierArticle,
@@ -130,6 +162,10 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
       profit,
       profitPercent,
       roi,
+      views,
+      addToCart,
+      addToCartRate,
+      cartToOrderRate,
     });
   }
 

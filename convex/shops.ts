@@ -49,6 +49,16 @@ export const updateLastSync = internalMutation({
   },
 });
 
+export const updateCategories = mutation({
+  args: {
+    id: v.id("shops"),
+    enabledCategories: v.array(v.string()),
+  },
+  handler: async (ctx, { id, enabledCategories }) => {
+    await ctx.db.patch(id, { enabledCategories });
+  },
+});
+
 export const getSyncLog = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
