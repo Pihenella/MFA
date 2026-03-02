@@ -17,14 +17,17 @@ export type Order = {
 
 export type Financial = {
   deliveryAmount: number;
-  stornoDeliveryAmount?: number;
+  stornoDeliveryAmount: number;
   storageAmount: number;
   penalty: number;
   additionalPayment: number;
+  deductionAmount: number;
   ppvzForPay: number;
   retailAmount: number;
   returnAmount?: number;
   docTypeName: string;
+  nmId: number;
+  supplierArticle: string;
 };
 
 export type Cost = {
@@ -76,8 +79,10 @@ export type DashboardMetrics = {
   storagePercent: number;
   ads: number;
   adsPercent: number;
-  otherServices: number;
-  otherServicesPercent: number;
+  penalties: number;
+  penaltiesPercent: number;
+  deductions: number;
+  deductionsPercent: number;
   compensation: number;
   compensationPercent: number;
   totalExpenses: number;
@@ -137,27 +142,43 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   const grossProfitPercent = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
 
   // Marketplace expenses (from financials)
-  const logistics = financials.reduce((s, f) => s + (f.deliveryAmount || 0), 0);
-  const storage = financials.reduce((s, f) => s + (f.storageAmount || 0), 0);
-  const compensation = financials.reduce((s, f) => s + (f.additionalPayment || 0), 0);
-  const penalties = financials.reduce((s, f) => s + (f.penalty || 0), 0);
-  const otherServices = penalties;
+  // Logistics = SUM(deliveryAmount - stornoDeliveryAmount) across all rows
+  const logistics = financials.reduce(
+    (s, f) => s + (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0),
+    0,
+  );
 
-  // Commission = revenue - forPay - logistics
-  const forPay = sales.filter(s => !s.isReturn).reduce((s, x) => s + x.forPay, 0);
-  const commission = Math.max(0, revenue - forPay - logistics);
-  const commissionPercent = revenue > 0 ? (commission / revenue) * 100 : 0;
+  // Commission = SUM(retailAmount - ppvzForPay - netLogistics - storageAmount) for "Продажа" only
+  const salesFinancials = financials.filter((f) => f.docTypeName === "Продажа");
+  const commission = salesFinancials.reduce((s, f) => {
+    const netLogistics = (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
+    return s + (f.retailAmount || 0) - (f.ppvzForPay || 0) - netLogistics - (f.storageAmount || 0);
+  }, 0);
+
+  // Storage = SUM(storageAmount) across all rows
+  const storage = financials.reduce((s, f) => s + (f.storageAmount || 0), 0);
+
+  // Penalties = SUM(penalty) across all rows
+  const penalties = financials.reduce((s, f) => s + (f.penalty || 0), 0);
+
+  // Deductions = SUM(deductionAmount) across all rows
+  const deductions = financials.reduce((s, f) => s + (f.deductionAmount || 0), 0);
+
+  // Compensation = SUM(additionalPayment) across all rows
+  const compensation = financials.reduce((s, f) => s + (f.additionalPayment || 0), 0);
 
   // Ads
   const ads = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
 
+  const commissionPercent = revenue > 0 ? (commission / revenue) * 100 : 0;
   const logisticsPercent = revenue > 0 ? (logistics / revenue) * 100 : 0;
   const storagePercent = revenue > 0 ? (storage / revenue) * 100 : 0;
   const adsPercent = revenue > 0 ? (ads / revenue) * 100 : 0;
-  const otherServicesPercent = revenue > 0 ? (otherServices / revenue) * 100 : 0;
+  const penaltiesPercent = revenue > 0 ? (penalties / revenue) * 100 : 0;
+  const deductionsPercent = revenue > 0 ? (deductions / revenue) * 100 : 0;
   const compensationPercent = revenue > 0 ? (compensation / revenue) * 100 : 0;
 
-  const totalExpenses = commission + logistics + storage + ads + otherServices - compensation;
+  const totalExpenses = commission + logistics + storage + ads + penalties + deductions - compensation;
   const totalExpensesPercent = revenue > 0 ? (totalExpenses / revenue) * 100 : 0;
 
   // Marginal profit
@@ -180,7 +201,8 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
     grossProfit, grossProfitPercent,
     commission, commissionPercent, logistics, logisticsPercent,
     storage, storagePercent, ads, adsPercent,
-    otherServices, otherServicesPercent, compensation, compensationPercent,
+    penalties, penaltiesPercent, deductions, deductionsPercent,
+    compensation, compensationPercent,
     totalExpenses, totalExpensesPercent,
     marginalProfit, marginalProfitPercent, tax, taxPercent,
     profit, profitPercent, roi,

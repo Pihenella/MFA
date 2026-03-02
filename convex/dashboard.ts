@@ -16,8 +16,18 @@ export const getOrders = query({
         )
         .collect();
     }
-    const results = await ctx.db.query("orders").collect();
-    return results.filter((o) => o.date >= dateFrom && o.date <= dateTo);
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(
+      shops.map((s) =>
+        ctx.db
+          .query("orders")
+          .withIndex("by_shop_date", (q) =>
+            q.eq("shopId", s._id).gte("date", dateFrom).lte("date", dateTo)
+          )
+          .collect()
+      )
+    );
+    return results.flat();
   },
 });
 
@@ -36,8 +46,18 @@ export const getSales = query({
         )
         .collect();
     }
-    const results = await ctx.db.query("sales").collect();
-    return results.filter((s) => s.date >= dateFrom && s.date <= dateTo);
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(
+      shops.map((s) =>
+        ctx.db
+          .query("sales")
+          .withIndex("by_shop_date", (q) =>
+            q.eq("shopId", s._id).gte("date", dateFrom).lte("date", dateTo)
+          )
+          .collect()
+      )
+    );
+    return results.flat();
   },
 });
 
@@ -56,8 +76,18 @@ export const getFinancials = query({
         )
         .collect();
     }
-    const results = await ctx.db.query("financials").collect();
-    return results.filter((f) => f.dateFrom >= dateFrom && f.dateFrom <= dateTo);
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(
+      shops.map((s) =>
+        ctx.db
+          .query("financials")
+          .withIndex("by_shop_date", (q) =>
+            q.eq("shopId", s._id).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+          )
+          .collect()
+      )
+    );
+    return results.flat();
   },
 });
 
@@ -72,7 +102,16 @@ export const getCosts = query({
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
     }
-    return await ctx.db.query("costs").collect();
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(
+      shops.map((s) =>
+        ctx.db
+          .query("costs")
+          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .collect()
+      )
+    );
+    return results.flat();
   },
 });
 
@@ -83,21 +122,29 @@ export const getCampaigns = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    const filterByDate = (campaigns: any[]) =>
+      campaigns.filter((c) => {
+        const d = new Date(c.updatedAt).toISOString().slice(0, 10);
+        return d >= dateFrom && d <= dateTo;
+      });
+
     if (shopId) {
       const results = await ctx.db
         .query("campaigns")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
-      return results.filter((c) => {
-        const d = new Date(c.updatedAt).toISOString().slice(0, 10);
-        return d >= dateFrom && d <= dateTo;
-      });
+      return filterByDate(results);
     }
-    const results = await ctx.db.query("campaigns").collect();
-    return results.filter((c) => {
-      const d = new Date(c.updatedAt).toISOString().slice(0, 10);
-      return d >= dateFrom && d <= dateTo;
-    });
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(
+      shops.map((s) =>
+        ctx.db
+          .query("campaigns")
+          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .collect()
+      )
+    );
+    return filterByDate(results.flat());
   },
 });
 

@@ -45,9 +45,11 @@ export const upsertOrders = internalMutation({
   args: { shopId: v.id("shops"), orders: v.array(v.any()) },
   handler: async (ctx, { shopId, orders }) => {
     for (const o of orders) {
+      // WB Statistics API uses `srid` as the unique order identifier
+      const srid = String(o.srid ?? "");
       const existing = await ctx.db
         .query("orders")
-        .withIndex("by_order_id", (q) => q.eq("orderId", String(o.orderId)))
+        .withIndex("by_order_id", (q) => q.eq("orderId", srid))
         .first();
       const row = {
         shopId,
@@ -59,7 +61,7 @@ export const upsertOrders = internalMutation({
         discountPercent: o.discountPercent ?? 0,
         warehouseName: o.warehouseName ?? "",
         status: o.status ?? "",
-        orderId: String(o.orderId ?? ""),
+        orderId: srid,
         isCancel: o.isCancel ?? false,
       };
       if (existing) {
@@ -404,5 +406,34 @@ export const syncShop = internalAction({
 
     // Update lastSyncAt
     await ctx.runMutation(internal.shops.updateLastSync, { id: shopId });
+  },
+});
+
+// ---- Cleanup: delete duplicate orders with empty orderId ----
+
+export const deleteEmptyOrderIdBatch = internalMutation({
+  handler: async (ctx) => {
+    const batch = await ctx.db
+      .query("orders")
+      .withIndex("by_order_id", (q) => q.eq("orderId", ""))
+      .take(500);
+    for (const o of batch) await ctx.db.delete(o._id);
+    return batch.length;
+  },
+});
+
+export const cleanupDuplicateOrders = internalAction({
+  args: { maxBatches: v.optional(v.number()) },
+  handler: async (ctx, { maxBatches }) => {
+    const limit = maxBatches ?? 50;
+    let total = 0;
+    for (let i = 0; i < limit; i++) {
+      const deleted: number = await ctx.runMutation(
+        internal.sync.deleteEmptyOrderIdBatch
+      );
+      total += deleted;
+      if (deleted === 0) break;
+    }
+    return total;
   },
 });

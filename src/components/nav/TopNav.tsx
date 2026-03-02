@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 const WB_MENU = [
   { label: "Дашборд", href: "/" },
+  { label: "Рука на пульсе", href: "/pulse" },
+  { label: "Аналитика продаж", href: "/analytics" },
   { label: "Товары", href: "/products" },
   { label: "Финансовые отчеты", href: "/financials" },
 ];

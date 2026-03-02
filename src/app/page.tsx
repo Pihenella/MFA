@@ -64,6 +64,10 @@ export default function DashboardPage() {
         onChange={(p, cp) => { setPeriod(p); setComparePeriod(cp); }}
       />
 
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+        Финансовые данные WB обновляются с задержкой 1–2 недели. Комиссия, логистика, хранение и удержания могут быть неполными для последних дней.
+      </div>
+
       {/* 1. Заказы и отмены */}
       <DashboardSection title="Заказы и отмены">
         <MetricCard label="Заказы" value={mNow.ordersRevenue} prevValue={mPrev.ordersRevenue} delta={pctDelta(mNow.ordersRevenue, mPrev.ordersRevenue)} unit="₽" />
@@ -103,7 +107,8 @@ export default function DashboardPage() {
         <MetricCard label="Логистика" value={-mNow.logisticsPercent} prevValue={-mPrev.logisticsPercent} delta={pctDelta(mNow.logisticsPercent, mPrev.logisticsPercent)} unit="%" invertColors />
         <MetricCard label="Хранение" value={-mNow.storage} prevValue={-mPrev.storage} delta={pctDelta(mNow.storage, mPrev.storage)} unit="₽" invertColors />
         <MetricCard label="Реклама" value={-mNow.ads} prevValue={-mPrev.ads} delta={pctDelta(mNow.ads, mPrev.ads)} unit="₽" invertColors />
-        <MetricCard label="Прочие услуги" value={-mNow.otherServices} prevValue={-mPrev.otherServices} delta={pctDelta(mNow.otherServices, mPrev.otherServices)} unit="₽" invertColors />
+        <MetricCard label="Штрафы" value={-mNow.penalties} prevValue={-mPrev.penalties} delta={pctDelta(mNow.penalties, mPrev.penalties)} unit="₽" invertColors />
+        <MetricCard label="Удержания" value={-mNow.deductions} prevValue={-mPrev.deductions} delta={pctDelta(mNow.deductions, mPrev.deductions)} unit="₽" invertColors />
         <MetricCard label="Компенсация" value={mNow.compensation} prevValue={mPrev.compensation} delta={pctDelta(mNow.compensation, mPrev.compensation)} unit="₽" />
         <MetricCard label="Итого расходы" value={-mNow.totalExpenses} prevValue={-mPrev.totalExpenses} delta={pctDelta(mNow.totalExpenses, mPrev.totalExpenses)} unit="₽" invertColors />
         <MetricCard label="Итого расходы" value={-mNow.totalExpensesPercent} prevValue={-mPrev.totalExpensesPercent} delta={pctDelta(mNow.totalExpensesPercent, mPrev.totalExpensesPercent)} unit="%" invertColors />

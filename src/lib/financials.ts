@@ -7,6 +7,8 @@ type FinancialRow = {
   retailAmount: number;
   returnAmount: number;
   deliveryAmount: number;
+  stornoDeliveryAmount: number;
+  deductionAmount: number;
   ppvzForPay: number;
   penalty: number;
   additionalPayment: number;
@@ -27,6 +29,7 @@ type ReportSummary = {
   logistics: number;
   storage: number;
   penalty: number;
+  deductions: number;
   compensation: number;
   salesCount: number;
   returnsCount: number;
@@ -41,7 +44,7 @@ export function groupByReport(rows: FinancialRow[]): ReportSummary[] {
         dateFrom: r.dateFrom,
         dateTo: r.dateTo,
         salesRevenue: 0, returnsRevenue: 0, revenue: 0, forPay: 0,
-        logistics: 0, storage: 0, penalty: 0, compensation: 0,
+        logistics: 0, storage: 0, penalty: 0, deductions: 0, compensation: 0,
         salesCount: 0, returnsCount: 0,
       });
     }
@@ -54,9 +57,10 @@ export function groupByReport(rows: FinancialRow[]): ReportSummary[] {
       s.returnsCount += 1;
     }
     s.forPay += r.ppvzForPay;
-    s.logistics += r.deliveryAmount;
+    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
     s.storage += r.storageAmount;
     s.penalty += r.penalty;
+    s.deductions += r.deductionAmount || 0;
     s.compensation += r.additionalPayment;
   }
   const result = Array.from(map.values());
@@ -75,17 +79,28 @@ export function groupByWeek(rows: FinancialRow[]) {
     return `${d.getFullYear()}-W${String(weekNo).padStart(2, "0")}`;
   };
 
-  const map = new Map<string, any>();
+  const map = new Map<string, {
+    week: string;
+    salesRevenue: number;
+    returnsRevenue: number;
+    revenue: number;
+    forPay: number;
+    logistics: number;
+    deductions: number;
+    salesCount: number;
+    returnsCount: number;
+  }>();
   for (const r of rows) {
     const key = getWeekKey(r.dateFrom);
     if (!map.has(key)) {
-      map.set(key, { week: key, salesRevenue: 0, returnsRevenue: 0, revenue: 0, forPay: 0, logistics: 0, salesCount: 0, returnsCount: 0 });
+      map.set(key, { week: key, salesRevenue: 0, returnsRevenue: 0, revenue: 0, forPay: 0, logistics: 0, deductions: 0, salesCount: 0, returnsCount: 0 });
     }
     const s = map.get(key)!;
     if (r.docTypeName === "Продажа") { s.salesRevenue += r.retailAmount; s.salesCount += 1; }
     if (r.docTypeName === "Возврат") { s.returnsRevenue += r.retailAmount; s.returnsCount += 1; }
     s.forPay += r.ppvzForPay;
-    s.logistics += r.deliveryAmount;
+    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
+    s.deductions += r.deductionAmount || 0;
   }
   return Array.from(map.values())
     .map((s) => ({ ...s, revenue: s.salesRevenue - s.returnsRevenue }))
