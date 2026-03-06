@@ -36,15 +36,26 @@ export default function ProductsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const costMap = new Map(costs.map((c) => [c.nmId, c.cost]));
-  const cardMap = new Map(productCards.map((c) => [c.nmId, c]));
 
-  // Deduplicate stocks by nmId
-  const uniqueArticles = Array.from(
-    new Map(stocks.map((s) => [s.nmId, s])).values()
-  );
+  // Aggregate stock quantities by nmId
+  const stockQtyMap = new Map<number, number>();
+  for (const s of stocks) {
+    stockQtyMap.set(s.nmId, (stockQtyMap.get(s.nmId) ?? 0) + s.quantity);
+  }
 
-  const costCount = uniqueArticles.filter((a) => costMap.has(a.nmId) && (costMap.get(a.nmId) ?? 0) > 0).length;
-  const totalCount = uniqueArticles.length;
+  // Use productCards as primary source (full catalog)
+  const allProducts = productCards.map((card) => ({
+    nmId: card.nmId,
+    supplierArticle: card.vendorCode,
+    subject: card.subjectName,
+    title: card.title,
+    brand: card.brand,
+    photo: card.photos?.[0] ?? null,
+    stockQty: stockQtyMap.get(card.nmId) ?? null,
+  }));
+
+  const costCount = allProducts.filter((a) => costMap.has(a.nmId) && (costMap.get(a.nmId) ?? 0) > 0).length;
+  const totalCount = allProducts.length;
 
   const handleSave = async (nmId: number, supplierArticle: string) => {
     const val = parseFloat(editMap[nmId] ?? "0");
@@ -84,11 +95,11 @@ export default function ProductsPage() {
   };
 
   const handleDownloadTemplate = () => {
-    const data = uniqueArticles.map((s) => ({
-      nmId: s.nmId,
-      "Артикул поставщика": s.supplierArticle,
-      "Предмет": s.subject,
-      "Себестоимость": costMap.get(s.nmId) ?? "",
+    const data = allProducts.map((p) => ({
+      nmId: p.nmId,
+      "Артикул поставщика": p.supplierArticle,
+      "Предмет": p.subject,
+      "Себестоимость": costMap.get(p.nmId) ?? "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -108,7 +119,7 @@ export default function ProductsPage() {
           >
             {shops.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
-          <Button variant="outline" onClick={handleDownloadTemplate} disabled={uniqueArticles.length === 0}>
+          <Button variant="outline" onClick={handleDownloadTemplate} disabled={allProducts.length === 0}>
             <Download className="h-4 w-4 mr-2" /> Скачать шаблон
           </Button>
           <Button variant="outline" onClick={() => fileRef.current?.click()}>
@@ -149,42 +160,42 @@ export default function ProductsPage() {
                 <th className="pb-2">Артикул продавца</th>
                 <th className="pb-2">Товар</th>
                 <th className="pb-2">Бренд</th>
+                <th className="pb-2 text-right">Остатки, шт</th>
                 <th className="pb-2 text-right">Себестоимость, ₽</th>
                 <th className="pb-2"></th>
               </tr>
             </thead>
             <tbody>
-              {uniqueArticles.map((s) => {
-                const currentCost = costMap.get(s.nmId);
-                const editVal = editMap[s.nmId] ?? String(currentCost ?? "");
-                const isDirty = editMap[s.nmId] !== undefined;
-                const card = cardMap.get(s.nmId);
-                const photo = card?.photos?.[0];
+              {allProducts.map((p) => {
+                const currentCost = costMap.get(p.nmId);
+                const editVal = editMap[p.nmId] ?? String(currentCost ?? "");
+                const isDirty = editMap[p.nmId] !== undefined;
                 return (
-                  <tr key={s.nmId} className="border-b last:border-0 hover:bg-gray-50">
+                  <tr key={p.nmId} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="py-2 w-12">
-                      {photo ? (
-                        <img src={photo} alt="" className="w-10 h-10 rounded object-cover" />
+                      {p.photo ? (
+                        <img src={p.photo} alt="" className="w-10 h-10 rounded object-cover" />
                       ) : (
                         <div className="w-10 h-10 rounded bg-gray-100" />
                       )}
                     </td>
-                    <td className="py-2 font-mono">{s.nmId}</td>
-                    <td className="py-2">{s.supplierArticle}</td>
-                    <td className="py-2 text-gray-600">{card?.title || s.subject}</td>
-                    <td className="py-2 text-gray-500 text-xs">{card?.brand ?? ""}</td>
+                    <td className="py-2 font-mono">{p.nmId}</td>
+                    <td className="py-2">{p.supplierArticle}</td>
+                    <td className="py-2 text-gray-600">{p.title || p.subject}</td>
+                    <td className="py-2 text-gray-500 text-xs">{p.brand ?? ""}</td>
+                    <td className="py-2 text-right">{p.stockQty !== null ? p.stockQty : "—"}</td>
                     <td className="py-2">
                       <Input
                         type="number"
                         value={editVal}
-                        onChange={(e) => setEditMap({ ...editMap, [s.nmId]: e.target.value })}
+                        onChange={(e) => setEditMap({ ...editMap, [p.nmId]: e.target.value })}
                         className="w-32 ml-auto text-right"
                         placeholder="0"
                       />
                     </td>
                     <td className="py-2 pl-2">
                       {isDirty && (
-                        <Button size="sm" onClick={() => handleSave(s.nmId, s.supplierArticle)} className="bg-violet-600 hover:bg-violet-700">
+                        <Button size="sm" onClick={() => handleSave(p.nmId, p.supplierArticle)} className="bg-violet-600 hover:bg-violet-700">
                           <Save className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -192,8 +203,8 @@ export default function ProductsPage() {
                   </tr>
                 );
               })}
-              {uniqueArticles.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-gray-400">Нет данных. Добавьте магазин и запустите синхронизацию.</td></tr>
+              {allProducts.length === 0 && (
+                <tr><td colSpan={8} className="py-8 text-center text-gray-400">Нет данных. Добавьте магазин и запустите синхронизацию.</td></tr>
               )}
             </tbody>
           </table>
