@@ -15,11 +15,11 @@ export const upsertReturns = internalMutation({
       const row = {
         shopId,
         returnId,
-        nmId: r.nm_id ?? r.nmId ?? 0,
+        nmId: Number(r.nm_id ?? r.nmId) || 0,
         orderId: String(r.order_id ?? r.orderId ?? ""),
-        returnDate: (r.dt ?? r.returnDate ?? "").slice(0, 10),
-        warehouseName: r.warehouse_name ?? r.warehouseName ?? "",
-        status: r.status ?? "",
+        returnDate: String(r.dt ?? r.returnDate ?? "").slice(0, 10),
+        warehouseName: String(r.warehouse_name ?? r.warehouseName ?? ""),
+        status: String(r.status ?? ""),
       };
       if (existing) {
         await ctx.db.patch(existing._id, row);
@@ -34,27 +34,23 @@ export const syncReturns = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
     try {
-      let offset = 0;
       let totalCount = 0;
-      while (true) {
-        const res = await fetchWithRetry(
-          `https://returns-api.wildberries.ru/api/v1/returns?dateFrom=${thirtyDaysAgo}&limit=1000&offset=${offset}`,
-          { headers },
-        );
-        await assertOk(res);
-        const data = await res.json();
-        const returns = Array.isArray(data) ? data : data.returns ?? [];
-        if (!Array.isArray(returns) || returns.length === 0) break;
-        totalCount += returns.length;
+      // Fetch active claims
+      const res = await fetchWithRetry(
+        `https://returns-api.wildberries.ru/api/v1/claims?is_archive=false`,
+        { headers },
+      );
+      await assertOk(res);
+      const data = await res.json();
+      const returns = Array.isArray(data) ? data : data.claims ?? [];
+      if (Array.isArray(returns) && returns.length > 0) {
+        totalCount = returns.length;
         const batches = chunk(returns, BATCH_SIZE);
         for (const batch of batches) {
           await ctx.runMutation(internal.sync.syncReturns.upsertReturns, { shopId, returns: batch });
         }
-        if (returns.length < 1000) break;
-        offset += returns.length;
       }
       await ctx.runMutation(internal.sync.helpers.logSync, {
         shopId, endpoint: "returns", status: "ok" as const, count: totalCount,

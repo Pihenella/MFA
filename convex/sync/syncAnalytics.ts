@@ -51,11 +51,15 @@ export const syncAnalytics = internalAction({
       let totalCount = 0;
       while (true) {
         const body = {
-          period: { begin: thirtyDaysAgo, end: today },
+          nmIds: [],
+          brandNames: [],
+          subjectIds: [],
+          tagIds: [],
+          selectedPeriod: { start: thirtyDaysAgo, end: today },
           page,
         };
         const res = await fetchWithRetry(
-          `https://seller-analytics-api.wildberries.ru/api/v2/nm-report/detail`,
+          `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`,
           {
             method: "POST",
             headers,
@@ -67,7 +71,25 @@ export const syncAnalytics = internalAction({
         const cards = data.data?.cards ?? data.cards ?? [];
         if (!Array.isArray(cards) || cards.length === 0) break;
         totalCount += cards.length;
-        const batches = chunk(cards, BATCH_SIZE);
+        // Map v3 field names to our schema
+        const mapped = cards.map((c: any) => ({
+          nmID: c.nmID ?? c.nmId,
+          statistics: {
+            selectedPeriod: {
+              openCardCount: c.openCardCount ?? 0,
+              addToCartCount: c.addToCartCount ?? 0,
+              ordersCount: c.ordersCount ?? 0,
+              buyoutsCount: c.buyoutsCount ?? 0,
+              conversions: {
+                addToCartPercent: c.addToCartConversion ?? 0,
+                cartToOrderPercent: c.cartToOrderConversion ?? 0,
+              },
+            },
+          },
+          periodStart: thirtyDaysAgo,
+          periodEnd: today,
+        }));
+        const batches = chunk(mapped, BATCH_SIZE);
         for (const batch of batches) {
           await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
         }

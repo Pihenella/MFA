@@ -62,7 +62,7 @@ export const syncFeedbacks = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    const thirtyDaysAgo = Math.floor((Date.now() - 30 * 86400000) / 1000);
 
     // Feedbacks
     try {

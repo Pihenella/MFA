@@ -36,30 +36,32 @@ export const syncPromotion = internalAction({
     const headers: Record<string, string> = { Authorization: apiKey };
 
     try {
+      // List campaigns via v2 endpoint
       const listRes = await fetchWithRetry(
-        `https://advert-api.wildberries.ru/adv/v1/promotion/adverts?status=7&status=9&status=11`,
+        `https://advert-api.wildberries.ru/api/advert/v2/adverts?statuses=7,9,11`,
         { headers },
       );
       await assertOk(listRes);
-      const adverts: any[] = await listRes.json();
+      const listData = await listRes.json();
+      const adverts: any[] = listData.adverts ?? (Array.isArray(listData) ? listData : []);
       if (Array.isArray(adverts) && adverts.length > 0) {
-        const campaignIds = adverts.map((a: any) => a.advertId);
+        const campaignIds = adverts.map((a: any) => a.id ?? a.advertId);
         const allCampaigns: any[] = [];
-        const idBatches = chunk(campaignIds, 100);
+        const today = new Date().toISOString().slice(0, 10);
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        // Fetch stats via v3 GET endpoint (max 50 ids per request)
+        const idBatches = chunk(campaignIds, 50);
         for (const idBatch of idBatches) {
+          const idsParam = idBatch.join(",");
           const statsRes = await fetchWithRetry(
-            `https://advert-api.wildberries.ru/adv/v2/fullstats`,
-            {
-              method: "POST",
-              headers: { ...headers, "Content-Type": "application/json" },
-              body: JSON.stringify(idBatch),
-            },
+            `https://advert-api.wildberries.ru/adv/v3/fullstats?ids=${idsParam}&beginDate=${thirtyDaysAgo}&endDate=${today}`,
+            { headers },
           );
           if (!statsRes.ok) continue;
           const statsData: any[] = await statsRes.json();
           if (!Array.isArray(statsData)) continue;
           for (const stat of statsData) {
-            const advert = adverts.find((a: any) => a.advertId === stat.advertId);
+            const advert = adverts.find((a: any) => (a.id ?? a.advertId) === (stat.advertId ?? stat.id));
             let impressions = 0;
             let clicks = 0;
             let spent = 0;
@@ -78,10 +80,14 @@ export const syncPromotion = internalAction({
                 }
               }
             }
+            // Also check top-level stats fields
+            impressions = impressions || Number(stat.views) || 0;
+            clicks = clicks || Number(stat.clicks) || 0;
+            spent = spent || Number(stat.sum ?? stat.spent) || 0;
             allCampaigns.push({
-              campaignId: stat.advertId,
-              name: advert?.name ?? advert?.changeTime ?? `Campaign ${stat.advertId}`,
-              budget: Number(advert?.dailyBudget) || 0,
+              campaignId: stat.advertId ?? stat.id,
+              name: advert?.settings?.name ?? advert?.name ?? `Campaign ${stat.advertId ?? stat.id}`,
+              budget: Number(advert?.dailyBudget ?? advert?.budget) || 0,
               spent,
               impressions,
               clicks,
