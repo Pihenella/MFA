@@ -15,9 +15,9 @@ export const upsertFeedbacks = internalMutation({
       const row = {
         shopId,
         feedbackId,
-        nmId: f.nmId ?? f.productDetails?.nmId ?? 0,
-        text: f.text ?? "",
-        productValuation: f.productValuation ?? 0,
+        nmId: Number(f.nmId ?? f.productDetails?.nmId) || 0,
+        text: String(f.text ?? ""),
+        productValuation: Number(f.productValuation) || 0,
         answer: f.answer?.text ?? undefined,
         createdDate: f.createdDate ?? "",
         isAnswered: !!(f.answer?.text),
@@ -43,8 +43,8 @@ export const upsertQuestions = internalMutation({
       const row = {
         shopId,
         questionId,
-        nmId: q.nmId ?? q.productDetails?.nmId ?? 0,
-        text: q.text ?? "",
+        nmId: Number(q.nmId ?? q.productDetails?.nmId) || 0,
+        text: String(q.text ?? ""),
         answer: q.answer?.text ?? undefined,
         createdDate: q.createdDate ?? "",
         isAnswered: !!(q.answer?.text),

@@ -16,11 +16,11 @@ export const upsertTariffs = internalMutation({
     for (const t of tariffs) {
       await ctx.db.insert("tariffs", {
         shopId,
-        warehouseName: t.warehouseName ?? "",
-        boxDeliveryBase: t.boxDeliveryAndStorageExpr ?? t.boxDeliveryBase ?? 0,
-        boxDeliveryLiter: t.boxDeliveryLiter ?? 0,
-        boxStorageBase: t.boxStorageBase ?? 0,
-        boxStorageLiter: t.boxStorageLiter ?? 0,
+        warehouseName: String(t.warehouseName ?? ""),
+        boxDeliveryBase: Number(t.boxDeliveryAndStorageExpr ?? t.boxDeliveryBase) || 0,
+        boxDeliveryLiter: Number(t.boxDeliveryLiter) || 0,
+        boxStorageBase: Number(t.boxStorageBase) || 0,
+        boxStorageLiter: Number(t.boxStorageLiter) || 0,
         updatedAt: Date.now(),
       });
     }

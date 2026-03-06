@@ -14,10 +14,10 @@ export const upsertPrices = internalMutation({
         .first();
       const row = {
         shopId,
-        nmId,
-        supplierArticle: p.vendorCode ?? p.supplierArticle ?? "",
-        price: p.sizes?.[0]?.price ?? p.price ?? 0,
-        discount: p.discount ?? 0,
+        nmId: Number(nmId) || 0,
+        supplierArticle: String(p.vendorCode ?? p.supplierArticle ?? ""),
+        price: Number(p.sizes?.[0]?.price ?? p.price) || 0,
+        discount: Number(p.discount) || 0,
         promoCode: p.promoCode ?? undefined,
         updatedAt: Date.now(),
       };

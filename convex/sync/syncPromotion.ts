@@ -13,12 +13,12 @@ export const upsertCampaigns = internalMutation({
         .first();
       const row = {
         shopId,
-        campaignId: c.campaignId,
-        name: c.name ?? "",
-        budget: c.budget ?? 0,
-        spent: c.spent ?? 0,
-        impressions: c.impressions ?? 0,
-        clicks: c.clicks ?? 0,
+        campaignId: Number(c.campaignId) || 0,
+        name: String(c.name ?? ""),
+        budget: Number(c.budget) || 0,
+        spent: Number(c.spent) || 0,
+        impressions: Number(c.impressions) || 0,
+        clicks: Number(c.clicks) || 0,
         updatedAt: Date.now(),
       };
       if (existing) {
@@ -69,9 +69,9 @@ export const syncPromotion = internalAction({
                   for (const app of day.apps) {
                     if (Array.isArray(app.nm)) {
                       for (const nm of app.nm) {
-                        impressions += nm.views ?? 0;
-                        clicks += nm.clicks ?? 0;
-                        spent += nm.sum ?? 0;
+                        impressions += Number(nm.views) || 0;
+                        clicks += Number(nm.clicks) || 0;
+                        spent += Number(nm.sum) || 0;
                       }
                     }
                   }
@@ -81,7 +81,7 @@ export const syncPromotion = internalAction({
             allCampaigns.push({
               campaignId: stat.advertId,
               name: advert?.name ?? advert?.changeTime ?? `Campaign ${stat.advertId}`,
-              budget: advert?.dailyBudget ?? 0,
+              budget: Number(advert?.dailyBudget) || 0,
               spent,
               impressions,
               clicks,

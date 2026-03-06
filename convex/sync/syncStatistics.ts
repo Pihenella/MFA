@@ -17,15 +17,15 @@ export const upsertOrders = internalMutation({
       const row = {
         shopId,
         date: o.date?.slice(0, 10) ?? "",
-        nmId: o.nmId ?? 0,
-        supplierArticle: o.supplierArticle ?? "",
-        quantity: o.quantity ?? 0,
-        totalPrice: o.totalPrice ?? 0,
-        discountPercent: o.discountPercent ?? 0,
-        warehouseName: o.warehouseName ?? "",
-        status: o.status ?? "",
+        nmId: Number(o.nmId) || 0,
+        supplierArticle: String(o.supplierArticle ?? ""),
+        quantity: Number(o.quantity) || 0,
+        totalPrice: Number(o.totalPrice) || 0,
+        discountPercent: Number(o.discountPercent) || 0,
+        warehouseName: String(o.warehouseName ?? ""),
+        status: String(o.status ?? ""),
         orderId: srid,
-        isCancel: o.isCancel ?? false,
+        isCancel: !!o.isCancel,
       };
       if (existing) {
         await ctx.db.patch(existing._id, row);
@@ -47,15 +47,15 @@ export const upsertSales = internalMutation({
       const row = {
         shopId,
         date: s.date?.slice(0, 10) ?? "",
-        nmId: s.nmId ?? 0,
-        supplierArticle: s.supplierArticle ?? "",
-        quantity: s.quantity ?? 0,
-        priceWithDisc: s.priceWithDisc ?? 0,
-        forPay: s.forPay ?? 0,
-        finishedPrice: s.finishedPrice ?? 0,
+        nmId: Number(s.nmId) || 0,
+        supplierArticle: String(s.supplierArticle ?? ""),
+        quantity: Number(s.quantity) || 0,
+        priceWithDisc: Number(s.priceWithDisc) || 0,
+        forPay: Number(s.forPay) || 0,
+        finishedPrice: Number(s.finishedPrice) || 0,
         saleID: String(s.saleID ?? ""),
-        isReturn: s.isReturn ?? s.saleID?.startsWith("R") ?? false,
-        warehouseName: s.warehouseName ?? "",
+        isReturn: !!(s.isReturn ?? s.saleID?.startsWith("R")),
+        warehouseName: String(s.warehouseName ?? ""),
       };
       if (existing) {
         await ctx.db.patch(existing._id, row);
@@ -83,11 +83,11 @@ export const insertStocks = internalMutation({
     for (const s of stocks) {
       await ctx.db.insert("stocks", {
         shopId,
-        warehouseName: s.warehouseName ?? "",
-        nmId: s.nmId ?? 0,
-        supplierArticle: s.supplierArticle ?? "",
-        subject: s.subject ?? "",
-        quantity: s.quantity ?? 0,
+        warehouseName: String(s.warehouseName ?? ""),
+        nmId: Number(s.nmId) || 0,
+        supplierArticle: String(s.supplierArticle ?? ""),
+        subject: String(s.subject ?? ""),
+        quantity: Number(s.quantity) || 0,
         updatedAt: Date.now(),
       });
     }
@@ -100,25 +100,25 @@ export const upsertFinancials = internalMutation({
     for (const r of rows) {
       const row = {
         shopId,
-        realizationreportId: r.realizationreport_id ?? 0,
+        realizationreportId: Number(r.realizationreport_id) || 0,
         dateFrom: r.date_from?.slice(0, 10) ?? "",
         dateTo: r.date_to?.slice(0, 10) ?? "",
-        supplierArticle: r.supplierArticle ?? r.sa_name ?? "",
-        nmId: r.nm_id ?? 0,
-        subject: r.subject_name ?? "",
-        retailAmount: r.retail_amount ?? 0,
-        returnAmount: r.return_amount ?? 0,
-        deliveryAmount: r.delivery_amount ?? 0,
-        stornoDeliveryAmount: r.storno_delivery_amount ?? 0,
-        ppvzForPay: r.ppvz_for_pay ?? 0,
-        penalty: r.penalty ?? 0,
-        additionalPayment: r.additional_payment ?? 0,
-        storageAmount: r.storage_amount ?? r.storage_fee ?? 0,
-        deductionAmount: r.deduction ?? 0,
-        siteCountry: r.site_country ?? "",
-        warehouseName: r.office_name ?? "",
+        supplierArticle: String(r.supplierArticle ?? r.sa_name ?? ""),
+        nmId: Number(r.nm_id) || 0,
+        subject: String(r.subject_name ?? ""),
+        retailAmount: Number(r.retail_amount) || 0,
+        returnAmount: Number(r.return_amount) || 0,
+        deliveryAmount: Number(r.delivery_amount) || 0,
+        stornoDeliveryAmount: Number(r.storno_delivery_amount) || 0,
+        ppvzForPay: Number(r.ppvz_for_pay) || 0,
+        penalty: Number(r.penalty) || 0,
+        additionalPayment: Number(r.additional_payment) || 0,
+        storageAmount: Number(r.storage_amount ?? r.storage_fee) || 0,
+        deductionAmount: Number(r.deduction) || 0,
+        siteCountry: String(r.site_country ?? ""),
+        warehouseName: String(r.office_name ?? ""),
         realizationreportDate: r.create_dt?.slice(0, 10) ?? "",
-        docTypeName: r.doc_type_name ?? "",
+        docTypeName: String(r.doc_type_name ?? ""),
       };
       const existing = await ctx.db
         .query("financials")
