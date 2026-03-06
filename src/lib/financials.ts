@@ -312,3 +312,215 @@ export function groupByReportFull(
 
   return result.sort((a, b) => b.interval.localeCompare(a.interval));
 }
+
+export type MpfactDetailRow = {
+  date: string;
+  year: number;
+  month: string;
+  profit: number;
+  profitPct: number;
+  roi: number;
+  salesSeller: number;
+  returnsSeller: number;
+  revenueSeller: number;
+  salesWbDisc: number | null;
+  returnsWbDisc: number | null;
+  revenueWbDisc: number | null;
+  forPaySales: number;
+  forPayReturns: number;
+  forPayTotal: number;
+  salesQty: number;
+  returnsQty: number;
+  buyoutsQty: number;
+  returnsPct: number;
+  costTotal: number;
+  costPct: number;
+  grossProfit: number;
+  grossProfitPct: number;
+  commission: number;
+  commissionPct: number;
+  logistics: number;
+  logisticsPct: number;
+  surcharges: number;
+  surchargesPct: number;
+  penalties: number;
+  penaltiesPct: number;
+  storage: number;
+  storagePct: number;
+  paidAcceptance: number | null;
+  paidAcceptancePct: number | null;
+  advertising: number;
+  advertisingPct: number;
+  otherDeductions: number;
+  otherDeductionsPct: number;
+  otherCharges: number | null;
+  otherChargesPct: number | null;
+  mpExpenses: number;
+  profitBeforeTax: number;
+  profitBeforeTaxPct: number;
+  tax: number | null;
+  taxPct: number | null;
+};
+
+export function groupByPeriodFull(
+  rows: FinancialRow[],
+  granularity: "day" | "week" | "month",
+  costMap: Map<number, number>,
+  campaignsSpent: number,
+): MpfactDetailRow[] {
+  const getKey = (dateStr: string): string => {
+    if (granularity === "day") return dateStr;
+    if (granularity === "month") return dateStr.slice(0, 7);
+    // week: ISO week (Monday-based)
+    const d = new Date(dateStr);
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() + 4 - day);
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return `${d.getFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  };
+
+  const map = new Map<string, {
+    key: string;
+    firstDate: string;
+    salesSeller: number;
+    returnsSeller: number;
+    forPaySales: number;
+    forPayReturns: number;
+    salesQty: number;
+    returnsQty: number;
+    logistics: number;
+    storage: number;
+    penalties: number;
+    surcharges: number;
+    deductions: number;
+    nmIds: Set<number>;
+    salesByNm: Map<number, number>;
+    returnsByNm: Map<number, number>;
+  }>();
+
+  for (const r of rows) {
+    const key = getKey(r.dateFrom);
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        firstDate: r.dateFrom,
+        salesSeller: 0,
+        returnsSeller: 0,
+        forPaySales: 0,
+        forPayReturns: 0,
+        salesQty: 0,
+        returnsQty: 0,
+        logistics: 0,
+        storage: 0,
+        penalties: 0,
+        surcharges: 0,
+        deductions: 0,
+        nmIds: new Set(),
+        salesByNm: new Map(),
+        returnsByNm: new Map(),
+      });
+    }
+    const s = map.get(key)!;
+    if (r.dateFrom < s.firstDate) s.firstDate = r.dateFrom;
+    s.nmIds.add(r.nmId);
+
+    if (r.docTypeName === "Продажа") {
+      s.salesSeller += r.retailAmount;
+      s.forPaySales += r.ppvzForPay;
+      s.salesQty += 1;
+      s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
+    } else if (r.docTypeName === "Возврат") {
+      s.returnsSeller += Math.abs(r.retailAmount);
+      s.forPayReturns += Math.abs(r.ppvzForPay);
+      s.returnsQty += 1;
+      s.returnsByNm.set(r.nmId, (s.returnsByNm.get(r.nmId) ?? 0) + 1);
+    }
+    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
+    s.storage += r.storageAmount;
+    s.penalties += r.penalty;
+    s.surcharges += r.additionalPayment;
+    s.deductions += r.deductionAmount || 0;
+  }
+
+  const periodCount = map.size;
+  const adsPerPeriod = periodCount > 0 ? campaignsSpent / periodCount : 0;
+
+  const result: MpfactDetailRow[] = [];
+
+  for (const s of map.values()) {
+    const revenueSeller = s.salesSeller - s.returnsSeller;
+    const forPayTotal = s.forPaySales - s.forPayReturns;
+    const buyoutsQty = s.salesQty - s.returnsQty;
+    const returnsPct = s.salesQty > 0 ? (s.returnsQty / s.salesQty) * 100 : 0;
+
+    let costTotal = 0;
+    for (const nmId of s.nmIds) {
+      const unitCost = costMap.get(nmId) ?? 0;
+      const sold = s.salesByNm.get(nmId) ?? 0;
+      const returned = s.returnsByNm.get(nmId) ?? 0;
+      costTotal += unitCost * (sold - returned);
+    }
+
+    const commission = s.salesSeller - s.forPaySales - s.logistics;
+    const grossProfit = forPayTotal - costTotal;
+    const mpExpenses = Math.abs(commission) + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.penalties) + Math.abs(s.deductions);
+    const profitBeforeTax = forPayTotal - costTotal - adsPerPeriod;
+    const profit = profitBeforeTax;
+    const roi = costTotal > 0 ? (profit / costTotal) * 100 : 0;
+
+    const pct = (val: number, base: number) => base !== 0 ? (val / Math.abs(base)) * 100 : 0;
+
+    const d = new Date(s.firstDate);
+    result.push({
+      date: s.firstDate,
+      year: d.getFullYear(),
+      month: s.firstDate.slice(0, 7),
+      profit,
+      profitPct: pct(profit, revenueSeller),
+      roi,
+      salesSeller: s.salesSeller,
+      returnsSeller: s.returnsSeller,
+      revenueSeller,
+      salesWbDisc: null,
+      returnsWbDisc: null,
+      revenueWbDisc: null,
+      forPaySales: s.forPaySales,
+      forPayReturns: -s.forPayReturns,
+      forPayTotal,
+      salesQty: s.salesQty,
+      returnsQty: s.returnsQty,
+      buyoutsQty,
+      returnsPct,
+      costTotal: -costTotal,
+      costPct: pct(-costTotal, revenueSeller),
+      grossProfit,
+      grossProfitPct: pct(grossProfit, revenueSeller),
+      commission: -Math.abs(commission),
+      commissionPct: pct(-Math.abs(commission), revenueSeller),
+      logistics: -Math.abs(s.logistics),
+      logisticsPct: pct(-Math.abs(s.logistics), revenueSeller),
+      surcharges: s.surcharges,
+      surchargesPct: pct(s.surcharges, revenueSeller),
+      penalties: -Math.abs(s.penalties),
+      penaltiesPct: pct(-Math.abs(s.penalties), revenueSeller),
+      storage: -Math.abs(s.storage),
+      storagePct: pct(-Math.abs(s.storage), revenueSeller),
+      paidAcceptance: null,
+      paidAcceptancePct: null,
+      advertising: -adsPerPeriod,
+      advertisingPct: pct(-adsPerPeriod, revenueSeller),
+      otherDeductions: -Math.abs(s.deductions),
+      otherDeductionsPct: pct(-Math.abs(s.deductions), revenueSeller),
+      otherCharges: null,
+      otherChargesPct: null,
+      mpExpenses: -mpExpenses,
+      profitBeforeTax,
+      profitBeforeTaxPct: pct(profitBeforeTax, revenueSeller),
+      tax: null,
+      taxPct: null,
+    });
+  }
+
+  return result.sort((a, b) => b.date.localeCompare(a.date));
+}
