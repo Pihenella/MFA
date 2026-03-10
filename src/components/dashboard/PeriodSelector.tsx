@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { format, subDays } from "date-fns";
 
 type Period = { from: string; to: string };
@@ -30,25 +29,23 @@ export function PeriodSelector({ period, comparePeriod, onChange }: Props) {
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-4 bg-white rounded-xl border border-gray-100 p-4">
-      <div className="space-y-1">
-        <Label className="text-xs text-gray-500">Период с</Label>
-        <Input type="date" value={p.from} onChange={(e) => setP({ ...p, from: e.target.value })} className="w-38" />
+    <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+      {/* Строка 1: Текущий период */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-gray-700 w-20">Период</span>
+        <Input type="date" value={p.from} onChange={(e) => setP({ ...p, from: e.target.value })} className="w-40" />
+        <span className="text-sm text-gray-400">—</span>
+        <Input type="date" value={p.to} onChange={(e) => setP({ ...p, to: e.target.value })} className="w-40" />
+        <Button onClick={apply} size="sm" className="bg-violet-600 hover:bg-violet-700">Применить</Button>
+        <Button onClick={clear} size="sm" variant="outline">Сбросить</Button>
       </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-gray-500">по</Label>
-        <Input type="date" value={p.to} onChange={(e) => setP({ ...p, to: e.target.value })} className="w-38" />
+      {/* Строка 2: Период сравнения */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-gray-700 w-20">Сравнение</span>
+        <Input type="date" value={cp.from} onChange={(e) => setCp({ ...cp, from: e.target.value })} className="w-40" />
+        <span className="text-sm text-gray-400">—</span>
+        <Input type="date" value={cp.to} onChange={(e) => setCp({ ...cp, to: e.target.value })} className="w-40" />
       </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-gray-500">Сравнение с</Label>
-        <Input type="date" value={cp.from} onChange={(e) => setCp({ ...cp, from: e.target.value })} className="w-38" />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-gray-500">по</Label>
-        <Input type="date" value={cp.to} onChange={(e) => setCp({ ...cp, to: e.target.value })} className="w-38" />
-      </div>
-      <Button onClick={apply} className="bg-violet-600 hover:bg-violet-700">Применить</Button>
-      <Button onClick={clear} variant="outline">Очистить</Button>
     </div>
   );
 }

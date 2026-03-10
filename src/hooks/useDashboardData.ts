@@ -55,8 +55,22 @@ export function useDashboardData(period: Period, comparePeriod: Period, shopId?:
     dateTo: comparePeriod.to,
   }) ?? [];
 
+  // NM Reports — фильтруем по дате на клиенте (periodStart/periodEnd пересекается с выбранным периодом)
+  const allNmReports = useQuery(api.dashboard.getNmReports, { shopId }) ?? [];
+
+  const filterNmByPeriod = (p: Period) =>
+    allNmReports.filter((r) => {
+      const ps = (r as any).periodStart ?? "";
+      const pe = (r as any).periodEnd ?? "";
+      // Пересечение: report.start <= period.to && report.end >= period.from
+      return ps <= p.to && pe >= p.from;
+    });
+
+  const nmReportsNow = filterNmByPeriod(period);
+  const nmReportsPrev = filterNmByPeriod(comparePeriod);
+
   return {
-    now: { orders: ordersNow, sales: salesNow, financials: financialsNow, costs, campaigns: campaignsNow },
-    prev: { orders: ordersPrev, sales: salesPrev, financials: financialsPrev, costs, campaigns: campaignsPrev },
+    now: { orders: ordersNow, sales: salesNow, financials: financialsNow, costs, campaigns: campaignsNow, nmReports: nmReportsNow },
+    prev: { orders: ordersPrev, sales: salesPrev, financials: financialsPrev, costs, campaigns: campaignsPrev, nmReports: nmReportsPrev },
   };
 }

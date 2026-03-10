@@ -39,38 +39,54 @@ export type Campaign = {
   spent: number;
 };
 
+export type NmReport = {
+  openCardCount: number;
+  addToCartCount: number;
+  ordersCount: number;
+  buyoutsCount: number;
+};
+
 export type DashboardInput = {
   sales: Sale[];
   orders: Order[];
   financials: Financial[];
   costs: Cost[];
   campaigns: Campaign[];
+  nmReports: NmReport[];
 };
 
 export type DashboardMetrics = {
-  // Orders
+  // Переходы и корзины
+  openCardCount: number;
+  addToCartCount: number;
+  crToCart: number;
+  crToOrder: number;
+  // Заказы
   ordersRevenue: number;
   ordersCount: number;
-  cancelledRevenue: number;
+  avgOrderValue: number;
   cancelledCount: number;
   cancelRate: number;
-  // Revenue
-  salesRevenue: number;
-  returnsRevenue: number;
-  revenue: number;
-  avgCheck: number;
+  // Выручка и валовая прибыль
+  salesRetail: number;
+  returnsRetail: number;
+  netRetail: number;
+  salesForPay: number;
+  returnsForPay: number;
+  revenueForPay: number;
+  avgCheckForPay: number;
   salesCount: number;
   returnsCount: number;
   returnRate: number;
   buyoutsCount: number;
-  buyoutRate: number;
+  revenuePercent: number;
+  wbDiscount: number;
+  wbDiscountPercent: number;
   cogs: number;
   cogsPercent: number;
-  avgCogs: number;
-  // Gross profit
   grossProfit: number;
   grossProfitPercent: number;
-  // Marketplace expenses
+  // Расходы на WB
   commission: number;
   commissionPercent: number;
   logistics: number;
@@ -87,7 +103,7 @@ export type DashboardMetrics = {
   compensationPercent: number;
   totalExpenses: number;
   totalExpensesPercent: number;
-  // Margin & tax
+  // Маржинальная прибыль и налоги
   marginalProfit: number;
   marginalProfitPercent: number;
   tax: number;
@@ -100,105 +116,132 @@ export type DashboardMetrics = {
 const TAX_RATE = 0.06; // УСН 6%
 
 export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics {
-  const { sales, orders, financials, costs, campaigns } = input;
+  const { sales, orders, financials, costs, campaigns, nmReports } = input;
 
   const costMap = new Map<number, number>();
   for (const c of costs) costMap.set(c.nmId, c.cost);
 
-  // Orders
+  // ── Переходы и корзины (NM Reports) ──
+  const openCardCount = nmReports.reduce((s, r) => s + r.openCardCount, 0);
+  const addToCartCount = nmReports.reduce((s, r) => s + r.addToCartCount, 0);
+  const nmOrdersCount = nmReports.reduce((s, r) => s + r.ordersCount, 0);
+  const crToCart = openCardCount > 0 ? (addToCartCount / openCardCount) * 100 : 0;
+  const crToOrder = addToCartCount > 0 ? (nmOrdersCount / addToCartCount) * 100 : 0;
+
+  // ── Заказы ──
   const activeOrders = orders.filter((o) => !o.isCancel);
   const cancelledOrders = orders.filter((o) => o.isCancel);
   const ordersRevenue = activeOrders.reduce((s, o) => s + o.totalPrice, 0);
   const ordersCount = activeOrders.reduce((s, o) => s + o.quantity, 0);
-  const cancelledRevenue = cancelledOrders.reduce((s, o) => s + o.totalPrice, 0);
   const cancelledCount = cancelledOrders.reduce((s, o) => s + o.quantity, 0);
-  const totalOrders = ordersCount + cancelledCount;
-  const cancelRate = totalOrders > 0 ? (cancelledCount / totalOrders) * 100 : 0;
+  // % отмен = отменённые / активные заказы (как в MPFact)
+  const cancelRate = ordersCount > 0 ? (cancelledCount / ordersCount) * 100 : 0;
+  const avgOrderValue = ordersCount > 0 ? ordersRevenue / ordersCount : 0;
 
-  // Sales & returns
+  // ── Продажи и возвраты ──
   const salesOnly = sales.filter((s) => !s.isReturn);
   const returnsOnly = sales.filter((s) => s.isReturn);
-  const salesRevenue = salesOnly.reduce((s, x) => s + x.priceWithDisc, 0);
-  const returnsRevenue = returnsOnly.reduce((s, x) => s + x.priceWithDisc, 0);
-  const revenue = salesRevenue - returnsRevenue;
+
+  // По розничной цене (цена продаж)
+  const salesRetail = salesOnly.reduce((s, x) => s + x.priceWithDisc, 0);
+  const returnsRetail = returnsOnly.reduce((s, x) => s + x.priceWithDisc, 0);
+  const netRetail = salesRetail - returnsRetail; // Выкупная цена продаж
+
+  // По forPay (с учётом скидок ВБ — реальная выручка продавца)
+  const salesForPay = salesOnly.reduce((s, x) => s + x.forPay, 0);
+  const returnsForPay = returnsOnly.reduce((s, x) => s + x.forPay, 0);
+  const revenueForPay = salesForPay - returnsForPay; // Выручка с учётом скидок ВБ
+
   const salesCount = salesOnly.reduce((s, x) => s + x.quantity, 0);
   const returnsCount = returnsOnly.reduce((s, x) => s + x.quantity, 0);
-  const returnRate = salesCount > 0 ? (returnsCount / salesCount) * 100 : 0;
-  const buyoutsCount = salesCount;
-  const totalOrdersForBuyout = ordersCount + returnsCount;
-  const buyoutRate = totalOrdersForBuyout > 0 ? (buyoutsCount / totalOrdersForBuyout) * 100 : 0;
-  const avgCheck = salesCount > 0 ? salesRevenue / salesCount : 0;
+  const buyoutsCount = salesCount - returnsCount; // Чистые выкупы
 
-  // COGS
-  const cogs = salesOnly.reduce((s, x) => {
+  // % возвратов = возвраты / выкупы (как в MPFact)
+  const returnRate = buyoutsCount > 0 ? (returnsCount / buyoutsCount) * 100 : 0;
+  const avgCheckForPay = buyoutsCount > 0 ? revenueForPay / buyoutsCount : 0;
+
+  // Выручка, % = buyouts / (activeOrders + cancelledOrders + returns)
+  const totalForBuyoutRate = ordersCount + cancelledCount + returnsCount;
+  const revenuePercent = totalForBuyoutRate > 0
+    ? (buyoutsCount / totalForBuyoutRate) * 100
+    : 0;
+
+  // Скидки ВБ (разница между розничной и тем, что получает продавец)
+  const wbDiscount = netRetail - revenueForPay;
+  const wbDiscountPercent = netRetail > 0 ? (wbDiscount / netRetail) * 100 : 0;
+
+  // ── Себестоимость (COGS) — нетто (продажи минус возвраты) ──
+  const cogsSales = salesOnly.reduce((s, x) => {
     const cost = costMap.get(x.nmId) ?? 0;
     return s + cost * x.quantity;
   }, 0);
-  const cogsPercent = revenue > 0 ? (cogs / revenue) * 100 : 0;
-  const avgCogs = salesCount > 0 ? cogs / salesCount : 0;
+  const cogsReturns = returnsOnly.reduce((s, x) => {
+    const cost = costMap.get(x.nmId) ?? 0;
+    return s + cost * x.quantity;
+  }, 0);
+  const cogs = cogsSales - cogsReturns;
+  // Все проценты относительно netRetail (как в MPFact)
+  const cogsPercent = netRetail > 0 ? (cogs / netRetail) * 100 : 0;
 
-  // Gross profit
-  const grossProfit = revenue - cogs;
-  const grossProfitPercent = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+  // ── Валовая прибыль ──
+  const grossProfit = revenueForPay - cogs;
+  const grossProfitPercent = netRetail > 0 ? (grossProfit / netRetail) * 100 : 0;
 
-  // Marketplace expenses (from financials)
-  // Logistics = SUM(deliveryAmount - stornoDeliveryAmount) across all rows
+  // ── Расходы маркетплейса (из финансового отчёта) ──
   const logistics = financials.reduce(
     (s, f) => s + (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0),
     0,
   );
 
-  // Commission = SUM(retailAmount - ppvzForPay - netLogistics - storageAmount) for "Продажа" only
   const salesFinancials = financials.filter((f) => f.docTypeName === "Продажа");
   const commission = salesFinancials.reduce((s, f) => {
-    const netLogistics = (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
-    return s + (f.retailAmount || 0) - (f.ppvzForPay || 0) - netLogistics - (f.storageAmount || 0);
+    const netLog = (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
+    return s + (f.retailAmount || 0) - (f.ppvzForPay || 0) - netLog - (f.storageAmount || 0);
   }, 0);
 
-  // Storage = SUM(storageAmount) across all rows
   const storage = financials.reduce((s, f) => s + (f.storageAmount || 0), 0);
-
-  // Penalties = SUM(penalty) across all rows
   const penalties = financials.reduce((s, f) => s + (f.penalty || 0), 0);
-
-  // Deductions = SUM(deductionAmount) across all rows
   const deductions = financials.reduce((s, f) => s + (f.deductionAmount || 0), 0);
-
-  // Compensation = SUM(additionalPayment) across all rows
   const compensation = financials.reduce((s, f) => s + (f.additionalPayment || 0), 0);
-
-  // Ads
   const ads = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
 
-  const commissionPercent = revenue > 0 ? (commission / revenue) * 100 : 0;
-  const logisticsPercent = revenue > 0 ? (logistics / revenue) * 100 : 0;
-  const storagePercent = revenue > 0 ? (storage / revenue) * 100 : 0;
-  const adsPercent = revenue > 0 ? (ads / revenue) * 100 : 0;
-  const penaltiesPercent = revenue > 0 ? (penalties / revenue) * 100 : 0;
-  const deductionsPercent = revenue > 0 ? (deductions / revenue) * 100 : 0;
-  const compensationPercent = revenue > 0 ? (compensation / revenue) * 100 : 0;
+  // Проценты от netRetail (как в MPFact)
+  const pct = (v: number) => (netRetail > 0 ? (v / netRetail) * 100 : 0);
+  const commissionPercent = pct(commission);
+  const logisticsPercent = pct(logistics);
+  const storagePercent = pct(storage);
+  const adsPercent = pct(ads);
+  const penaltiesPercent = pct(penalties);
+  const deductionsPercent = pct(deductions);
+  const compensationPercent = pct(compensation);
 
   const totalExpenses = commission + logistics + storage + ads + penalties + deductions - compensation;
-  const totalExpensesPercent = revenue > 0 ? (totalExpenses / revenue) * 100 : 0;
+  const totalExpensesPercent = pct(totalExpenses);
 
-  // Marginal profit
+  // ── Маржинальная прибыль ──
   const marginalProfit = grossProfit - totalExpenses;
-  const marginalProfitPercent = revenue > 0 ? (marginalProfit / revenue) * 100 : 0;
+  const marginalProfitPercent = pct(marginalProfit);
 
-  // Tax (УСН 6%)
-  const tax = revenue * TAX_RATE;
-  const taxPercent = TAX_RATE * 100;
+  // ── Налог (УСН 6% от реальной выручки forPay) ──
+  const tax = revenueForPay * TAX_RATE;
+  const taxPercent = pct(tax);
 
-  // Net profit
+  // ── Чистая прибыль ──
   const profit = marginalProfit - tax;
-  const profitPercent = revenue > 0 ? (profit / revenue) * 100 : 0;
-  const roi = cogs > 0 ? (profit / cogs) * 100 : 0;
+  const profitPercent = pct(profit);
+
+  // ── ROI = прибыль / (себестоимость + реклама) ──
+  const totalInvestment = cogs + ads;
+  const roi = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0;
 
   return {
-    ordersRevenue, ordersCount, cancelledRevenue, cancelledCount, cancelRate,
-    salesRevenue, returnsRevenue, revenue, avgCheck, salesCount, returnsCount,
-    returnRate, buyoutsCount, buyoutRate, cogs, cogsPercent, avgCogs,
-    grossProfit, grossProfitPercent,
+    openCardCount, addToCartCount, crToCart, crToOrder,
+    ordersRevenue, ordersCount, avgOrderValue, cancelledCount, cancelRate,
+    salesRetail, returnsRetail, netRetail,
+    salesForPay, returnsForPay, revenueForPay, avgCheckForPay,
+    salesCount, returnsCount, returnRate, buyoutsCount,
+    revenuePercent, wbDiscount, wbDiscountPercent,
+    cogs, cogsPercent, grossProfit, grossProfitPercent,
     commission, commissionPercent, logistics, logisticsPercent,
     storage, storagePercent, ads, adsPercent,
     penalties, penaltiesPercent, deductions, deductionsPercent,
