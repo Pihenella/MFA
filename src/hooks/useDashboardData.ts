@@ -1,10 +1,26 @@
-import { useQuery } from "convex/react";
+import { useQuery, useAction } from "convex/react";
+import { useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 
 type Period = { from: string; to: string };
 
 export function useDashboardData(period: Period, comparePeriod: Period, shopId?: Id<"shops">) {
+  const fetchAnalytics = useAction(api.actions.fetchAnalytics);
+  const fetchedRef = useRef<string>("");
+
+  // Загружаем аналитику для текущего и сравнительного периода при смене дат/магазина
+  useEffect(() => {
+    if (!shopId) return;
+    const key = `${shopId}:${period.from}:${period.to}:${comparePeriod.from}:${comparePeriod.to}`;
+    if (fetchedRef.current === key) return;
+    fetchedRef.current = key;
+
+    // Запрашиваем аналитику для обоих периодов
+    fetchAnalytics({ shopId, dateFrom: period.from, dateTo: period.to }).catch(() => {});
+    fetchAnalytics({ shopId, dateFrom: comparePeriod.from, dateTo: comparePeriod.to }).catch(() => {});
+  }, [shopId, period.from, period.to, comparePeriod.from, comparePeriod.to, fetchAnalytics]);
+
   const ordersNow = useQuery(api.dashboard.getOrders, {
     shopId,
     dateFrom: period.from,
@@ -55,19 +71,18 @@ export function useDashboardData(period: Period, comparePeriod: Period, shopId?:
     dateTo: comparePeriod.to,
   }) ?? [];
 
-  // NM Reports — фильтруем по дате на клиенте (periodStart/periodEnd пересекается с выбранным периодом)
-  const allNmReports = useQuery(api.dashboard.getNmReports, { shopId }) ?? [];
+  // NM Reports — фильтруем по дате (exact match на periodStart/periodEnd)
+  const nmReportsNow = useQuery(api.dashboard.getNmReports, {
+    shopId,
+    dateFrom: period.from,
+    dateTo: period.to,
+  }) ?? [];
 
-  const filterNmByPeriod = (p: Period) =>
-    allNmReports.filter((r) => {
-      const ps = (r as any).periodStart ?? "";
-      const pe = (r as any).periodEnd ?? "";
-      // Пересечение: report.start <= period.to && report.end >= period.from
-      return ps <= p.to && pe >= p.from;
-    });
-
-  const nmReportsNow = filterNmByPeriod(period);
-  const nmReportsPrev = filterNmByPeriod(comparePeriod);
+  const nmReportsPrev = useQuery(api.dashboard.getNmReports, {
+    shopId,
+    dateFrom: comparePeriod.from,
+    dateTo: comparePeriod.to,
+  }) ?? [];
 
   return {
     now: { orders: ordersNow, sales: salesNow, financials: financialsNow, costs, campaigns: campaignsNow, nmReports: nmReportsNow },

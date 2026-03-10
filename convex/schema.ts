@@ -189,5 +189,6 @@ export default defineSchema({
     periodEnd: v.string(),
     updatedAt: v.number(),
   }).index("by_shop", ["shopId"])
-    .index("by_shop_nm", ["shopId", "nmId"]),
+    .index("by_shop_nm", ["shopId", "nmId"])
+    .index("by_shop_nm_date", ["shopId", "nmId", "periodStart"]),
 });

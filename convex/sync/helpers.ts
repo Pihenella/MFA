@@ -14,11 +14,13 @@ export const BATCH_SIZE = 50;
 export async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  retries = 1,
+  retries = 3,
 ): Promise<Response> {
   const res = await fetch(url, options);
   if ((res.status === 429 || res.status >= 500) && retries > 0) {
-    await new Promise((r) => setTimeout(r, 1000));
+    // Увеличиваем задержку при каждом ретрае (3s, 6s, 9s...)
+    const delay = (4 - retries) * 3000;
+    await new Promise((r) => setTimeout(r, delay));
     return fetchWithRetry(url, options, retries - 1);
   }
   return res;

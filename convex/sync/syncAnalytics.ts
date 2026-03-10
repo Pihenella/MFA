@@ -8,9 +8,14 @@ export const upsertNmReports = internalMutation({
   handler: async (ctx, { shopId, reports }) => {
     for (const r of reports) {
       const nmId = r.nmID ?? r.nmId ?? 0;
+      const periodStart = r.periodStart ?? "";
+      const periodEnd = r.periodEnd ?? "";
+      // Ищем по (shopId, nmId, periodStart) — уникальная запись за период
       const existing = await ctx.db
         .query("nmReports")
-        .withIndex("by_shop_nm", (q) => q.eq("shopId", shopId).eq("nmId", nmId))
+        .withIndex("by_shop_nm_date", (q) =>
+          q.eq("shopId", shopId).eq("nmId", Number(nmId) || 0).eq("periodStart", periodStart)
+        )
         .first();
       const conversions = r.statistics?.selectedPeriod?.conversions ?? r.conversions ?? {};
       const stats = r.statistics?.selectedPeriod ?? r;
@@ -23,8 +28,8 @@ export const upsertNmReports = internalMutation({
         buyoutsCount: Number(stats.buyoutsCount) || 0,
         convOpenToCart: Number(conversions.addToCartPercent) || 0,
         convCartToOrder: Number(conversions.cartToOrderPercent) || 0,
-        periodStart: r.periodStart ?? r.period?.begin ?? "",
-        periodEnd: r.periodEnd ?? r.period?.end ?? "",
+        periodStart,
+        periodEnd,
         updatedAt: Date.now(),
       };
       if (existing) {
@@ -36,6 +41,69 @@ export const upsertNmReports = internalMutation({
   },
 });
 
+// Запросить аналитику по продуктам за указанный период (все страницы)
+async function fetchAnalyticsForPeriod(
+  headers: Record<string, string>,
+  start: string,
+  end: string,
+): Promise<any[]> {
+  const allProducts: any[] = [];
+  let page = 1;
+  while (true) {
+    const body = {
+      nmIds: [],
+      brandNames: [],
+      subjectIds: [],
+      tagIds: [],
+      selectedPeriod: { start, end },
+      page,
+    };
+    const res = await fetchWithRetry(
+      `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      },
+    );
+    await assertOk(res);
+    const data = await res.json();
+    const products = data.data?.products ?? data.data?.cards ?? [];
+    if (!Array.isArray(products) || products.length === 0) break;
+    allProducts.push(...products);
+    const isLastPage = data.data?.isNextPage === false || products.length < 20;
+    if (isLastPage) break;
+    page++;
+  }
+  return allProducts;
+}
+
+function mapProducts(products: any[], start: string, end: string) {
+  return products.map((p: any) => {
+    const stat = p.statistic?.selected ?? p.statistics?.selectedPeriod ?? p;
+    const conv = stat.conversions ?? {};
+    const period = stat.period ?? {};
+    return {
+      nmID: p.product?.nmId ?? p.nmID ?? p.nmId,
+      statistics: {
+        selectedPeriod: {
+          openCardCount: stat.openCount ?? stat.openCardCount ?? 0,
+          addToCartCount: stat.cartCount ?? stat.addToCartCount ?? 0,
+          ordersCount: stat.orderCount ?? stat.ordersCount ?? 0,
+          buyoutsCount: stat.buyoutCount ?? stat.buyoutsCount ?? 0,
+          conversions: {
+            addToCartPercent: conv.addToCartPercent ?? 0,
+            cartToOrderPercent: conv.cartToOrderPercent ?? 0,
+          },
+        },
+      },
+      periodStart: period.start ?? start,
+      periodEnd: period.end ?? end,
+    };
+  });
+}
+
+// Основная синхронизация: один запрос за 30 дней
 export const syncAnalytics = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
@@ -47,69 +115,38 @@ export const syncAnalytics = internalAction({
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
     try {
-      let page = 1;
-      let totalCount = 0;
-      while (true) {
-        const body = {
-          nmIds: [],
-          brandNames: [],
-          subjectIds: [],
-          tagIds: [],
-          selectedPeriod: { start: thirtyDaysAgo, end: today },
-          page,
-        };
-        const res = await fetchWithRetry(
-          `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify(body),
-          },
-        );
-        await assertOk(res);
-        const data = await res.json();
-        // v3 API returns data.products (not data.cards)
-        const products = data.data?.products ?? data.data?.cards ?? [];
-        if (!Array.isArray(products) || products.length === 0) break;
-        totalCount += products.length;
-        // Map v3 response: each item has product.nmId and statistic.selected
-        const mapped = products.map((p: any) => {
-          const stat = p.statistic?.selected ?? p.statistics?.selectedPeriod ?? p;
-          const conv = stat.conversions ?? {};
-          const period = stat.period ?? {};
-          return {
-            nmID: p.product?.nmId ?? p.nmID ?? p.nmId,
-            statistics: {
-              selectedPeriod: {
-                openCardCount: stat.openCount ?? stat.openCardCount ?? 0,
-                addToCartCount: stat.cartCount ?? stat.addToCartCount ?? 0,
-                ordersCount: stat.orderCount ?? stat.ordersCount ?? 0,
-                buyoutsCount: stat.buyoutCount ?? stat.buyoutsCount ?? 0,
-                conversions: {
-                  addToCartPercent: conv.addToCartPercent ?? 0,
-                  cartToOrderPercent: conv.cartToOrderPercent ?? 0,
-                },
-              },
-            },
-            periodStart: period.start ?? thirtyDaysAgo,
-            periodEnd: period.end ?? today,
-          };
-        });
-        const batches = chunk(mapped, BATCH_SIZE);
-        for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
-        }
-        const isLastPage = data.data?.isNextPage === false || products.length < 20;
-        if (isLastPage) break;
-        page++;
+      const products = await fetchAnalyticsForPeriod(headers, thirtyDaysAgo, today);
+      const mapped = mapProducts(products, thirtyDaysAgo, today);
+      const batches = chunk(mapped, BATCH_SIZE);
+      for (const batch of batches) {
+        await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
       }
       await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "analytics", status: "ok" as const, count: totalCount,
+        shopId, endpoint: "analytics", status: "ok" as const, count: mapped.length,
       });
     } catch (e: any) {
       await ctx.runMutation(internal.sync.helpers.logSync, {
         shopId, endpoint: "analytics", status: "error" as const, error: e.message,
       });
     }
+  },
+});
+
+// Запрос аналитики для конкретного периода (вызывается с фронтенда)
+export const fetchAnalyticsForRange = internalAction({
+  args: { shopId: v.id("shops"), apiKey: v.string(), dateFrom: v.string(), dateTo: v.string() },
+  handler: async (ctx, { shopId, apiKey, dateFrom, dateTo }) => {
+    const headers: Record<string, string> = {
+      Authorization: apiKey,
+      "Content-Type": "application/json",
+    };
+
+    const products = await fetchAnalyticsForPeriod(headers, dateFrom, dateTo);
+    const mapped = mapProducts(products, dateFrom, dateTo);
+    const batches = chunk(mapped, BATCH_SIZE);
+    for (const batch of batches) {
+      await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
+    }
+    return mapped.length;
   },
 });

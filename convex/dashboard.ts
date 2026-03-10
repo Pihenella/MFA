@@ -149,13 +149,27 @@ export const getCampaigns = query({
 });
 
 export const getNmReports = query({
-  args: { shopId: v.optional(v.id("shops")) },
-  handler: async (ctx, { shopId }) => {
+  args: {
+    shopId: v.optional(v.id("shops")),
+    dateFrom: v.optional(v.string()),
+    dateTo: v.optional(v.string()),
+  },
+  handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    const filterByDate = (items: any[]) => {
+      if (!dateFrom || !dateTo) return items;
+      return items.filter((i) => {
+        const ps = i.periodStart ?? "";
+        const pe = i.periodEnd ?? "";
+        // Exact match: запись полностью внутри выбранного периода
+        return ps === dateFrom && pe === dateTo;
+      });
+    };
     if (shopId) {
-      return await ctx.db
+      const results = await ctx.db
         .query("nmReports")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
+      return filterByDate(results);
     }
     const shops = await ctx.db.query("shops").collect();
     const results = await Promise.all(
@@ -166,7 +180,7 @@ export const getNmReports = query({
           .collect()
       )
     );
-    return results.flat();
+    return filterByDate(results.flat());
   },
 });
 
