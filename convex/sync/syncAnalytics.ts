@@ -68,32 +68,38 @@ export const syncAnalytics = internalAction({
         );
         await assertOk(res);
         const data = await res.json();
-        const cards = data.data?.cards ?? data.cards ?? [];
-        if (!Array.isArray(cards) || cards.length === 0) break;
-        totalCount += cards.length;
-        // Map v3 field names to our schema
-        const mapped = cards.map((c: any) => ({
-          nmID: c.nmID ?? c.nmId,
-          statistics: {
-            selectedPeriod: {
-              openCardCount: c.openCardCount ?? 0,
-              addToCartCount: c.addToCartCount ?? 0,
-              ordersCount: c.ordersCount ?? 0,
-              buyoutsCount: c.buyoutsCount ?? 0,
-              conversions: {
-                addToCartPercent: c.addToCartConversion ?? 0,
-                cartToOrderPercent: c.cartToOrderConversion ?? 0,
+        // v3 API returns data.products (not data.cards)
+        const products = data.data?.products ?? data.data?.cards ?? [];
+        if (!Array.isArray(products) || products.length === 0) break;
+        totalCount += products.length;
+        // Map v3 response: each item has product.nmId and statistic.selected
+        const mapped = products.map((p: any) => {
+          const stat = p.statistic?.selected ?? p.statistics?.selectedPeriod ?? p;
+          const conv = stat.conversions ?? {};
+          const period = stat.period ?? {};
+          return {
+            nmID: p.product?.nmId ?? p.nmID ?? p.nmId,
+            statistics: {
+              selectedPeriod: {
+                openCardCount: stat.openCount ?? stat.openCardCount ?? 0,
+                addToCartCount: stat.cartCount ?? stat.addToCartCount ?? 0,
+                ordersCount: stat.orderCount ?? stat.ordersCount ?? 0,
+                buyoutsCount: stat.buyoutCount ?? stat.buyoutsCount ?? 0,
+                conversions: {
+                  addToCartPercent: conv.addToCartPercent ?? 0,
+                  cartToOrderPercent: conv.cartToOrderPercent ?? 0,
+                },
               },
             },
-          },
-          periodStart: thirtyDaysAgo,
-          periodEnd: today,
-        }));
+            periodStart: period.start ?? thirtyDaysAgo,
+            periodEnd: period.end ?? today,
+          };
+        });
         const batches = chunk(mapped, BATCH_SIZE);
         for (const batch of batches) {
           await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
         }
-        const isLastPage = data.data?.isNextPage === false || cards.length < 20;
+        const isLastPage = data.data?.isNextPage === false || products.length < 20;
         if (isLastPage) break;
         page++;
       }

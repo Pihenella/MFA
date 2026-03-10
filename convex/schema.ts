@@ -17,6 +17,7 @@ export default defineSchema({
     supplierArticle: v.string(),
     quantity: v.number(),
     totalPrice: v.number(),
+    priceWithDisc: v.optional(v.number()),
     discountPercent: v.number(),
     warehouseName: v.string(),
     status: v.string(),

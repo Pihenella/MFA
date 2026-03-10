@@ -14,14 +14,19 @@ export const upsertOrders = internalMutation({
         .query("orders")
         .withIndex("by_order_id", (q) => q.eq("orderId", srid))
         .first();
+      const totalPrice = Number(o.totalPrice) || 0;
+      const discountPercent = Number(o.discountPercent) || 0;
+      // priceWithDisc может приходить из API, либо считаем из totalPrice и скидки
+      const priceWithDisc = Number(o.priceWithDisc) || (totalPrice * (1 - discountPercent / 100));
       const row = {
         shopId,
         date: o.date?.slice(0, 10) ?? "",
         nmId: Number(o.nmId) || 0,
         supplierArticle: String(o.supplierArticle ?? ""),
         quantity: Number(o.quantity) || 0,
-        totalPrice: Number(o.totalPrice) || 0,
-        discountPercent: Number(o.discountPercent) || 0,
+        totalPrice,
+        priceWithDisc,
+        discountPercent,
         warehouseName: String(o.warehouseName ?? ""),
         status: String(o.status ?? ""),
         orderId: srid,

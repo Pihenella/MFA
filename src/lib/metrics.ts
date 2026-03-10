@@ -10,6 +10,7 @@ export type Sale = {
 export type Order = {
   nmId: number;
   totalPrice: number;
+  priceWithDisc?: number;
   quantity: number;
   isCancel: boolean;
   date: string;
@@ -65,6 +66,7 @@ export type DashboardMetrics = {
   ordersRevenue: number;
   ordersCount: number;
   avgOrderValue: number;
+  cancelledRevenue: number;
   cancelledCount: number;
   cancelRate: number;
   // Выручка и валовая прибыль
@@ -128,11 +130,12 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   const crToCart = openCardCount > 0 ? (addToCartCount / openCardCount) * 100 : 0;
   const crToOrder = addToCartCount > 0 ? (nmOrdersCount / addToCartCount) * 100 : 0;
 
-  // ── Заказы ──
+  // ── Заказы (по цене продавца = priceWithDisc) ──
   const activeOrders = orders.filter((o) => !o.isCancel);
   const cancelledOrders = orders.filter((o) => o.isCancel);
-  const ordersRevenue = activeOrders.reduce((s, o) => s + o.totalPrice, 0);
+  const ordersRevenue = activeOrders.reduce((s, o) => s + (o.priceWithDisc ?? o.totalPrice), 0);
   const ordersCount = activeOrders.reduce((s, o) => s + o.quantity, 0);
+  const cancelledRevenue = cancelledOrders.reduce((s, o) => s + (o.priceWithDisc ?? o.totalPrice), 0);
   const cancelledCount = cancelledOrders.reduce((s, o) => s + o.quantity, 0);
   // % отмен = отменённые / активные заказы (как в MPFact)
   const cancelRate = ordersCount > 0 ? (cancelledCount / ordersCount) * 100 : 0;
@@ -236,7 +239,7 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
 
   return {
     openCardCount, addToCartCount, crToCart, crToOrder,
-    ordersRevenue, ordersCount, avgOrderValue, cancelledCount, cancelRate,
+    ordersRevenue, ordersCount, avgOrderValue, cancelledRevenue, cancelledCount, cancelRate,
     salesRetail, returnsRetail, netRetail,
     salesForPay, returnsForPay, revenueForPay, avgCheckForPay,
     salesCount, returnsCount, returnRate, buyoutsCount,

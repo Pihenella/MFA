@@ -2,7 +2,7 @@ import { internalMutation, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
-const DEFAULT_CATEGORIES = ["statistics", "promotion"];
+const DEFAULT_CATEGORIES = ["statistics", "promotion", "analytics"];
 
 // ---- Orchestrator ----
 
@@ -46,6 +46,37 @@ export const syncShop = internalAction({
 
     // Update lastSyncAt
     await ctx.runMutation(internal.shops.updateLastSync, { id: shopId });
+  },
+});
+
+// ---- Backfill: add priceWithDisc to existing orders ----
+
+export const backfillPriceWithDiscBatch = internalMutation({
+  handler: async (ctx) => {
+    const batch = await ctx.db
+      .query("orders")
+      .filter((q) => q.eq(q.field("priceWithDisc"), undefined))
+      .take(500);
+    for (const o of batch) {
+      const priceWithDisc = o.totalPrice * (1 - o.discountPercent / 100);
+      await ctx.db.patch(o._id, { priceWithDisc });
+    }
+    return batch.length;
+  },
+});
+
+export const backfillPriceWithDisc = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    let total = 0;
+    for (let i = 0; i < 100; i++) {
+      const patched: number = await ctx.runMutation(
+        internal.sync.backfillPriceWithDiscBatch
+      );
+      total += patched;
+      if (patched === 0) break;
+    }
+    return total;
   },
 });
 
