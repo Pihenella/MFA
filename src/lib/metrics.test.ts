@@ -2,16 +2,6 @@ import { describe, it, expect } from "vitest";
 import { computeDashboardMetrics } from "./metrics";
 import { chunk } from "../../convex/sync/helpers";
 
-const makeSale = (overrides = {}) => ({
-  nmId: 1,
-  priceWithDisc: 1000,
-  forPay: 800,
-  quantity: 1,
-  isReturn: false,
-  date: "2026-02-16",
-  ...overrides,
-});
-
 const makeFinancial = (overrides = {}) => ({
   deliveryAmount: 0,
   stornoDeliveryAmount: 0,
@@ -20,6 +10,8 @@ const makeFinancial = (overrides = {}) => ({
   additionalPayment: 0,
   deductionAmount: 0,
   ppvzForPay: 0,
+  ppvzSalesTotal: undefined as number | undefined,
+  acceptance: undefined as number | undefined,
   retailAmount: 0,
   returnAmount: 0,
   docTypeName: "Продажа",
@@ -48,33 +40,51 @@ describe("chunk", () => {
   });
 });
 
-describe("computeDashboardMetrics", () => {
-  it("computes netRetail as sum of priceWithDisc for non-returns", () => {
-    const sales = [makeSale({ priceWithDisc: 1000, forPay: 800 }), makeSale({ priceWithDisc: 2000, forPay: 1600 })];
-    const result = computeDashboardMetrics({ ...emptyInput, sales });
-    expect(result.netRetail).toBe(3000);
-    expect(result.revenueForPay).toBe(2400);
-  });
-
-  it("subtracts returns from revenue", () => {
-    const sales = [makeSale({ priceWithDisc: 1000, forPay: 800 }), makeSale({ priceWithDisc: 500, forPay: 400, isReturn: true })];
-    const result = computeDashboardMetrics({ ...emptyInput, sales });
-    expect(result.netRetail).toBe(500);
-    expect(result.revenueForPay).toBe(400);
-  });
-
-  it("computes commission from financial data using retailAmount - ppvzForPay - netLogistics - storage for sales rows", () => {
-    const financials = [makeFinancial({
-      retailAmount: 10000,
-      ppvzForPay: 8000,
-      deliveryAmount: 500,
-      stornoDeliveryAmount: 0,
-      storageAmount: 100,
-      docTypeName: "Продажа",
-    })];
+describe("computeDashboardMetrics — financials-based (МП Факт формулы)", () => {
+  it("computes revenueSeller from financials retailAmount", () => {
+    const financials = [
+      makeFinancial({ retailAmount: 10000, ppvzForPay: 8000, docTypeName: "Продажа" }),
+      makeFinancial({ retailAmount: 5000, ppvzForPay: 4000, docTypeName: "Продажа" }),
+    ];
     const result = computeDashboardMetrics({ ...emptyInput, financials });
-    // commission = 10000 - 8000 - (500 - 0) - 100 = 1400
-    expect(result.commission).toBe(1400);
+    expect(result.salesSeller).toBe(15000);
+    expect(result.revenueSeller).toBe(15000);
+    expect(result.forPayTotal).toBe(12000);
+    expect(result.salesCount).toBe(2);
+  });
+
+  it("subtracts returns from revenue (from financials)", () => {
+    const financials = [
+      makeFinancial({ retailAmount: 10000, ppvzForPay: 8000, docTypeName: "Продажа" }),
+      makeFinancial({ retailAmount: -3000, ppvzForPay: -2400, docTypeName: "Возврат" }),
+    ];
+    const result = computeDashboardMetrics({ ...emptyInput, financials });
+    expect(result.salesSeller).toBe(10000);
+    expect(result.returnsSeller).toBe(3000);
+    expect(result.revenueSeller).toBe(7000);
+    expect(result.forPaySales).toBe(8000);
+    expect(result.forPayReturns).toBe(2400);
+    expect(result.forPayTotal).toBe(5600);
+  });
+
+  it("computes commission as revenueSeller - forPayTotal (МП Факт formula)", () => {
+    const financials = [
+      makeFinancial({ retailAmount: 10000, ppvzForPay: 8000, deliveryAmount: 500, storageAmount: 100, docTypeName: "Продажа" }),
+    ];
+    const result = computeDashboardMetrics({ ...emptyInput, financials });
+    // commission = revenueSeller - forPayTotal = 10000 - 8000 = 2000
+    // (NOT subtracting logistics/storage from commission!)
+    expect(result.commission).toBe(2000);
+  });
+
+  it("computes grossProfit as revenueSeller - cogs (МП Факт formula)", () => {
+    const financials = [
+      makeFinancial({ retailAmount: 10000, ppvzForPay: 8000, docTypeName: "Продажа" }),
+    ];
+    const costs = [{ nmId: 1, cost: 2000 }];
+    const result = computeDashboardMetrics({ ...emptyInput, financials, costs });
+    // grossProfit = revenueSeller(10000) - cogs(2000) = 8000
+    expect(result.grossProfit).toBe(8000);
   });
 
   it("computes net logistics as deliveryAmount minus stornoDeliveryAmount", () => {
@@ -83,18 +93,7 @@ describe("computeDashboardMetrics", () => {
       makeFinancial({ deliveryAmount: 300, stornoDeliveryAmount: 50 }),
     ];
     const result = computeDashboardMetrics({ ...emptyInput, financials });
-    // logistics = (500-100) + (300-50) = 650
     expect(result.logistics).toBe(650);
-  });
-
-  it("excludes non-sale rows from commission calculation", () => {
-    const financials = [
-      makeFinancial({ retailAmount: 10000, ppvzForPay: 8000, deliveryAmount: 500, storageAmount: 100, docTypeName: "Продажа" }),
-      makeFinancial({ retailAmount: 5000, ppvzForPay: 4000, deliveryAmount: 200, storageAmount: 50, docTypeName: "Возврат" }),
-    ];
-    const result = computeDashboardMetrics({ ...emptyInput, financials });
-    // Commission only from "Продажа": 10000 - 8000 - 500 - 100 = 1400
-    expect(result.commission).toBe(1400);
   });
 
   it("computes deductions from deductionAmount", () => {
@@ -106,88 +105,114 @@ describe("computeDashboardMetrics", () => {
     expect(result.deductions).toBe(500);
   });
 
-  it("includes deductions and penalties in totalExpenses", () => {
-    const financials = [
-      makeFinancial({ penalty: 100, deductionAmount: 200 }),
-    ];
-    const result = computeDashboardMetrics({ ...emptyInput, financials });
-    // totalExpenses = commission(0) + logistics(0) + storage(0) + ads(0) + penalties(100) + deductions(200) - compensation(0)
-    expect(result.totalExpenses).toBe(300);
-  });
-
-  it("computes full profit chain correctly with forPay-based revenue", () => {
-    const sales = [makeSale({ priceWithDisc: 10000, forPay: 8000 })];
-    const costs = [{ nmId: 1, cost: 2000 }];
+  it("computes full profit chain correctly (МП Факт style)", () => {
     const financials = [makeFinancial({
+      retailAmount: 10000,
+      ppvzForPay: 7000,
+      ppvzSalesTotal: 9000,
       deliveryAmount: 500,
       stornoDeliveryAmount: 50,
       storageAmount: 100,
+      acceptance: 10,
       penalty: 30,
       deductionAmount: 20,
-      additionalPayment: 10,
-      ppvzForPay: 8000,
-      retailAmount: 10000,
+      additionalPayment: 5,
       docTypeName: "Продажа",
     })];
-    const result = computeDashboardMetrics({ ...emptyInput, sales, costs, financials });
+    const costs = [{ nmId: 1, cost: 2000 }];
+    const result = computeDashboardMetrics({ ...emptyInput, financials, costs });
 
-    // Revenue is now forPay-based
-    expect(result.netRetail).toBe(10000);       // priceWithDisc (retail)
-    expect(result.revenueForPay).toBe(8000);     // forPay (actual revenue)
+    expect(result.revenueSeller).toBe(10000);
+    expect(result.forPayTotal).toBe(7000);
+    expect(result.revenueWbDisc).toBe(9000);
     expect(result.cogs).toBe(2000);
-    expect(result.grossProfit).toBe(6000);       // 8000 - 2000
-    expect(result.logistics).toBe(450);          // 500 - 50
-    // commission = 10000 - 8000 - 450 - 100 = 1450
-    expect(result.commission).toBe(1450);
-    expect(result.penalties).toBe(30);
-    expect(result.deductions).toBe(20);
-    expect(result.compensation).toBe(10);
-    // totalExpenses = 1450 + 450 + 100 + 0 + 30 + 20 - 10 = 2040
-    expect(result.totalExpenses).toBe(2040);
-    // marginalProfit = 6000 - 2040 = 3960
-    expect(result.marginalProfit).toBe(3960);
-    // tax = 8000 (forPay) * 0.06 = 480
-    expect(result.tax).toBe(480);
-    // profit = 3960 - 480 = 3480
-    expect(result.profit).toBe(3480);
+
+    // grossProfit = revenueSeller - cogs = 10000 - 2000 = 8000
+    expect(result.grossProfit).toBe(8000);
+
+    // commission = revenueSeller - forPayTotal = 10000 - 7000 = 3000
+    expect(result.commission).toBe(3000);
+
+    // logistics = 500 - 50 = 450
+    expect(result.logistics).toBe(450);
+
+    // mpExpenses = commission(3000) + logistics(450) + storage(100) + acceptance(10) + penalties(30) + deductions(20) - compensation(5) = 3605
+    expect(result.mpExpenses).toBe(3605);
+
+    // profitBeforeTax = grossProfit(8000) - mpExpenses(3605) - ads(0) = 4395
+    expect(result.profitBeforeTax).toBe(4395);
+
+    // tax = revenueWbDisc(9000) * 0.06 = 540
+    expect(result.tax).toBe(540);
+
+    // profit = 4395 - 540 = 3855
+    expect(result.profit).toBe(3855);
+
+    // roi = profit / cogs = 3855 / 2000 = 192.75%
+    expect(result.roi).toBeCloseTo(192.75);
   });
 
-  it("subtracts returns COGS from total COGS", () => {
-    const sales = [
-      makeSale({ nmId: 1, priceWithDisc: 5000, forPay: 4000, quantity: 2 }),
-      makeSale({ nmId: 1, priceWithDisc: 2500, forPay: 2000, quantity: 1, isReturn: true }),
+  it("uses retailAmount as fallback when ppvzSalesTotal is missing", () => {
+    const financials = [makeFinancial({
+      retailAmount: 10000,
+      ppvzForPay: 7000,
+      ppvzSalesTotal: undefined,
+      docTypeName: "Продажа",
+    })];
+    const result = computeDashboardMetrics({ ...emptyInput, financials });
+    // Falls back to retailAmount for WB discount price
+    expect(result.revenueWbDisc).toBe(10000);
+    expect(result.tax).toBe(600); // 10000 * 0.06
+  });
+
+  it("counts sales/returns from financials rows", () => {
+    const financials = [
+      makeFinancial({ retailAmount: 5000, docTypeName: "Продажа", nmId: 1 }),
+      makeFinancial({ retailAmount: 3000, docTypeName: "Продажа", nmId: 1 }),
+      makeFinancial({ retailAmount: -2000, docTypeName: "Возврат", nmId: 1 }),
     ];
-    const costs = [{ nmId: 1, cost: 500 }];
-    const result = computeDashboardMetrics({ ...emptyInput, sales, costs });
-    // cogsSales = 500 * 2 = 1000, cogsReturns = 500 * 1 = 500
-    // net COGS = 1000 - 500 = 500
-    expect(result.cogs).toBe(500);
-    expect(result.buyoutsCount).toBe(1); // 2 sales - 1 return
+    const result = computeDashboardMetrics({ ...emptyInput, financials });
+    expect(result.salesCount).toBe(2);
+    expect(result.returnsCount).toBe(1);
+    expect(result.buyoutsCount).toBe(1);
     // returnRate = returns / buyouts = 1/1 = 100%
     expect(result.returnRate).toBe(100);
   });
 
-  it("computes cancelRate as cancelled / active orders (MPFact style)", () => {
+  it("computes COGS from financials nmId counts", () => {
+    const financials = [
+      makeFinancial({ retailAmount: 5000, docTypeName: "Продажа", nmId: 1 }),
+      makeFinancial({ retailAmount: 5000, docTypeName: "Продажа", nmId: 1 }),
+      makeFinancial({ retailAmount: -3000, docTypeName: "Возврат", nmId: 1 }),
+    ];
+    const costs = [{ nmId: 1, cost: 500 }];
+    const result = computeDashboardMetrics({ ...emptyInput, financials, costs });
+    // 2 sales - 1 return = 1 net unit, cogs = 500 * 1 = 500
+    expect(result.cogs).toBe(500);
+  });
+
+  it("computes percentages relative to revenueSeller (МП Факт style)", () => {
+    const financials = [makeFinancial({
+      retailAmount: 10000,
+      ppvzForPay: 7000,
+      docTypeName: "Продажа",
+    })];
+    const costs = [{ nmId: 1, cost: 1000 }];
+    const result = computeDashboardMetrics({ ...emptyInput, financials, costs });
+    // revenueSeller = 10000
+    expect(result.cogsPercent).toBe(10); // 1000 / 10000 * 100
+    expect(result.commissionPercent).toBe(30); // 3000 / 10000 * 100
+    expect(result.grossProfitPercent).toBe(90); // 9000 / 10000 * 100
+  });
+
+  it("computes cancelRate as cancelled / active orders", () => {
     const orders = [
       { nmId: 1, totalPrice: 1000, quantity: 1, isCancel: false, date: "2026-03-02" },
       { nmId: 1, totalPrice: 1000, quantity: 1, isCancel: false, date: "2026-03-03" },
       { nmId: 1, totalPrice: 1000, quantity: 1, isCancel: true, date: "2026-03-04" },
     ];
     const result = computeDashboardMetrics({ ...emptyInput, orders });
-    // cancelRate = 1 cancelled / 2 active = 50%
     expect(result.cancelRate).toBe(50);
-  });
-
-  it("computes returnRate as returns / buyouts (MPFact style)", () => {
-    const sales = [
-      makeSale({ quantity: 1 }),
-      makeSale({ quantity: 1 }),
-      makeSale({ quantity: 1, isReturn: true }),
-    ];
-    const result = computeDashboardMetrics({ ...emptyInput, sales });
-    // buyouts = 2 - 1 = 1, returnRate = 1/1 = 100%
-    expect(result.returnRate).toBe(100);
-    expect(result.buyoutsCount).toBe(1);
   });
 
   it("computes NM report metrics", () => {
@@ -198,20 +223,7 @@ describe("computeDashboardMetrics", () => {
     const result = computeDashboardMetrics({ ...emptyInput, nmReports });
     expect(result.openCardCount).toBe(300);
     expect(result.addToCartCount).toBe(30);
-    expect(result.crToCart).toBeCloseTo(10); // 30/300 * 100
-    expect(result.crToOrder).toBeCloseTo(43.33, 1); // 13/30 * 100
-  });
-
-  it("computes percentages relative to netRetail", () => {
-    const sales = [makeSale({ priceWithDisc: 10000, forPay: 7000 })];
-    const costs = [{ nmId: 1, cost: 1000 }];
-    const result = computeDashboardMetrics({ ...emptyInput, sales, costs });
-    // netRetail = 10000, COGS = 1000
-    expect(result.cogsPercent).toBe(10);  // 1000 / 10000 * 100
-    // grossProfit = 7000 - 1000 = 6000
-    expect(result.grossProfitPercent).toBe(60); // 6000 / 10000 * 100
-    // wbDiscount = 10000 - 7000 = 3000
-    expect(result.wbDiscount).toBe(3000);
-    expect(result.wbDiscountPercent).toBe(30); // 3000 / 10000 * 100
+    expect(result.crToCart).toBeCloseTo(10);
+    expect(result.crToOrder).toBeCloseTo(43.33, 1);
   });
 });

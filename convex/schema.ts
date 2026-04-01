@@ -65,6 +65,8 @@ export default defineSchema({
     deliveryAmount: v.number(),
     stornoDeliveryAmount: v.number(),
     ppvzForPay: v.number(),
+    ppvzSalesTotal: v.optional(v.number()),
+    acceptance: v.optional(v.number()),
     penalty: v.number(),
     additionalPayment: v.number(),
     storageAmount: v.number(),

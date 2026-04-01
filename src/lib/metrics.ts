@@ -24,6 +24,8 @@ export type Financial = {
   additionalPayment: number;
   deductionAmount: number;
   ppvzForPay: number;
+  ppvzSalesTotal?: number;
+  acceptance?: number;
   retailAmount: number;
   returnAmount?: number;
   docTypeName: string;
@@ -69,32 +71,35 @@ export type DashboardMetrics = {
   cancelledRevenue: number;
   cancelledCount: number;
   cancelRate: number;
-  // Выручка и валовая прибыль
-  salesRetail: number;
-  returnsRetail: number;
-  netRetail: number;
-  salesForPay: number;
-  returnsForPay: number;
-  revenueForPay: number;
-  avgCheckForPay: number;
+  // Выручка (из financials — как МП Факт)
+  salesSeller: number;
+  returnsSeller: number;
+  revenueSeller: number;
+  salesWbDisc: number;
+  returnsWbDisc: number;
+  revenueWbDisc: number;
+  forPaySales: number;
+  forPayReturns: number;
+  forPayTotal: number;
+  avgCheck: number;
   salesCount: number;
   returnsCount: number;
   returnRate: number;
   buyoutsCount: number;
-  revenuePercent: number;
-  wbDiscount: number;
-  wbDiscountPercent: number;
+  // Себестоимость и валовая прибыль
   cogs: number;
   cogsPercent: number;
   grossProfit: number;
   grossProfitPercent: number;
-  // Расходы на WB
+  // Расходы на МП
   commission: number;
   commissionPercent: number;
   logistics: number;
   logisticsPercent: number;
   storage: number;
   storagePercent: number;
+  acceptance: number;
+  acceptancePercent: number;
   ads: number;
   adsPercent: number;
   penalties: number;
@@ -103,11 +108,11 @@ export type DashboardMetrics = {
   deductionsPercent: number;
   compensation: number;
   compensationPercent: number;
-  totalExpenses: number;
-  totalExpensesPercent: number;
-  // Маржинальная прибыль и налоги
-  marginalProfit: number;
-  marginalProfitPercent: number;
+  mpExpenses: number;
+  mpExpensesPercent: number;
+  // Прибыль и налоги
+  profitBeforeTax: number;
+  profitBeforeTaxPercent: number;
   tax: number;
   taxPercent: number;
   profit: number;
@@ -118,139 +123,156 @@ export type DashboardMetrics = {
 const TAX_RATE = 0.06; // УСН 6%
 
 export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics {
-  const { sales, orders, financials, costs, campaigns, nmReports } = input;
+  const { orders, financials, costs, campaigns, nmReports } = input;
 
   const costMap = new Map<number, number>();
   for (const c of costs) costMap.set(c.nmId, c.cost);
 
-  // ── Переходы и корзины (NM Reports) ──
+  // ── Переходы и корзины (NM Reports — без изменений) ──
   const openCardCount = nmReports.reduce((s, r) => s + r.openCardCount, 0);
   const addToCartCount = nmReports.reduce((s, r) => s + r.addToCartCount, 0);
   const nmOrdersCount = nmReports.reduce((s, r) => s + r.ordersCount, 0);
   const crToCart = openCardCount > 0 ? (addToCartCount / openCardCount) * 100 : 0;
   const crToOrder = addToCartCount > 0 ? (nmOrdersCount / addToCartCount) * 100 : 0;
 
-  // ── Заказы (по цене продавца = priceWithDisc) ──
+  // ── Заказы (из orders — без изменений) ──
   const activeOrders = orders.filter((o) => !o.isCancel);
   const cancelledOrders = orders.filter((o) => o.isCancel);
   const ordersRevenue = activeOrders.reduce((s, o) => s + (o.priceWithDisc ?? o.totalPrice), 0);
   const ordersCount = activeOrders.reduce((s, o) => s + o.quantity, 0);
   const cancelledRevenue = cancelledOrders.reduce((s, o) => s + (o.priceWithDisc ?? o.totalPrice), 0);
   const cancelledCount = cancelledOrders.reduce((s, o) => s + o.quantity, 0);
-  // % отмен = отменённые / активные заказы (как в MPFact)
   const cancelRate = ordersCount > 0 ? (cancelledCount / ordersCount) * 100 : 0;
   const avgOrderValue = ordersCount > 0 ? ordersRevenue / ordersCount : 0;
 
-  // ── Продажи и возвраты ──
-  const salesOnly = sales.filter((s) => !s.isReturn);
-  const returnsOnly = sales.filter((s) => s.isReturn);
+  // ══════════════════════════════════════════════════════════════
+  // ВСЯ ФИНАНСОВАЯ АНАЛИТИКА — ТОЛЬКО ИЗ financials (reportDetailByPeriod)
+  // Как в МП Факт: единый источник данных для P&L
+  // ══════════════════════════════════════════════════════════════
 
-  // По розничной цене (цена продаж)
-  const salesRetail = salesOnly.reduce((s, x) => s + x.priceWithDisc, 0);
-  const returnsRetail = returnsOnly.reduce((s, x) => s + x.priceWithDisc, 0);
-  const netRetail = salesRetail - returnsRetail; // Выкупная цена продаж
+  const salesFin = financials.filter((f) => f.docTypeName === "Продажа");
+  const returnsFin = financials.filter((f) => f.docTypeName === "Возврат");
 
-  // По forPay (с учётом скидок ВБ — реальная выручка продавца)
-  const salesForPay = salesOnly.reduce((s, x) => s + x.forPay, 0);
-  const returnsForPay = returnsOnly.reduce((s, x) => s + x.forPay, 0);
-  const revenueForPay = salesForPay - returnsForPay; // Выручка с учётом скидок ВБ
+  // ── Продажи и возвраты (цена продавца = retailAmount) ──
+  const salesSeller = salesFin.reduce((s, f) => s + (f.retailAmount || 0), 0);
+  const returnsSeller = returnsFin.reduce((s, f) => s + Math.abs(f.retailAmount || 0), 0);
+  const revenueSeller = salesSeller - returnsSeller;
 
-  const salesCount = salesOnly.reduce((s, x) => s + x.quantity, 0);
-  const returnsCount = returnsOnly.reduce((s, x) => s + x.quantity, 0);
-  const buyoutsCount = salesCount - returnsCount; // Чистые выкупы
+  // ── Продажи со скидкой WB (ppvzSalesTotal) ──
+  const salesWbDisc = salesFin.reduce((s, f) => s + (f.ppvzSalesTotal ?? f.retailAmount ?? 0), 0);
+  const returnsWbDisc = returnsFin.reduce((s, f) => s + Math.abs(f.ppvzSalesTotal ?? f.retailAmount ?? 0), 0);
+  const revenueWbDisc = salesWbDisc - returnsWbDisc;
 
-  // % возвратов = возвраты / выкупы (как в MPFact)
+  // ── К перечислению (ppvzForPay) ──
+  const forPaySales = salesFin.reduce((s, f) => s + (f.ppvzForPay || 0), 0);
+  const forPayReturns = returnsFin.reduce((s, f) => s + Math.abs(f.ppvzForPay || 0), 0);
+  const forPayTotal = forPaySales - forPayReturns;
+
+  // ── Количество (из financials — каждая строка = 1 единица) ──
+  const salesCount = salesFin.length;
+  const returnsCount = returnsFin.length;
+  const buyoutsCount = salesCount - returnsCount;
   const returnRate = buyoutsCount > 0 ? (returnsCount / buyoutsCount) * 100 : 0;
-  const avgCheckForPay = buyoutsCount > 0 ? revenueForPay / buyoutsCount : 0;
+  const avgCheck = buyoutsCount > 0 ? revenueSeller / buyoutsCount : 0;
 
-  // Выручка, % = buyouts / (activeOrders + cancelledOrders + returns)
-  const totalForBuyoutRate = ordersCount + cancelledCount + returnsCount;
-  const revenuePercent = totalForBuyoutRate > 0
-    ? (buyoutsCount / totalForBuyoutRate) * 100
-    : 0;
+  // ── Себестоимость (COGS) — нетто по nmId ──
+  const salesByNm = new Map<number, number>();
+  const returnsByNm = new Map<number, number>();
+  for (const f of salesFin) {
+    salesByNm.set(f.nmId, (salesByNm.get(f.nmId) ?? 0) + 1);
+  }
+  for (const f of returnsFin) {
+    returnsByNm.set(f.nmId, (returnsByNm.get(f.nmId) ?? 0) + 1);
+  }
+  const allNmIds = new Set([...salesByNm.keys(), ...returnsByNm.keys()]);
+  let cogs = 0;
+  for (const nmId of allNmIds) {
+    const unitCost = costMap.get(nmId) ?? 0;
+    const sold = salesByNm.get(nmId) ?? 0;
+    const returned = returnsByNm.get(nmId) ?? 0;
+    cogs += unitCost * (sold - returned);
+  }
 
-  // Скидки ВБ (разница между розничной и тем, что получает продавец)
-  const wbDiscount = netRetail - revenueForPay;
-  const wbDiscountPercent = netRetail > 0 ? (wbDiscount / netRetail) * 100 : 0;
+  // Все проценты относительно revenueSeller (как в МП Факт)
+  const pct = (v: number) => (revenueSeller !== 0 ? (v / Math.abs(revenueSeller)) * 100 : 0);
 
-  // ── Себестоимость (COGS) — нетто (продажи минус возвраты) ──
-  const cogsSales = salesOnly.reduce((s, x) => {
-    const cost = costMap.get(x.nmId) ?? 0;
-    return s + cost * x.quantity;
-  }, 0);
-  const cogsReturns = returnsOnly.reduce((s, x) => {
-    const cost = costMap.get(x.nmId) ?? 0;
-    return s + cost * x.quantity;
-  }, 0);
-  const cogs = cogsSales - cogsReturns;
-  // Все проценты относительно netRetail (как в MPFact)
-  const cogsPercent = netRetail > 0 ? (cogs / netRetail) * 100 : 0;
+  const cogsPercent = pct(cogs);
 
-  // ── Валовая прибыль ──
-  const grossProfit = revenueForPay - cogs;
-  const grossProfitPercent = netRetail > 0 ? (grossProfit / netRetail) * 100 : 0;
+  // ── Валовая прибыль = Выручка (цена продавца) - Себестоимость ──
+  const grossProfit = revenueSeller - cogs;
+  const grossProfitPercent = pct(grossProfit);
 
-  // ── Расходы маркетплейса (из финансового отчёта) ──
+  // ── Расходы маркетплейса (из financials — все строки) ──
+
+  // Комиссия = Выручка(цена продавца) - К перечислению (чистая разница, как в МП Факт)
+  const commission = revenueSeller - forPayTotal;
+
+  // Логистика
   const logistics = financials.reduce(
     (s, f) => s + (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0),
     0,
   );
 
-  const salesFinancials = financials.filter((f) => f.docTypeName === "Продажа");
-  const commission = salesFinancials.reduce((s, f) => {
-    const netLog = (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
-    return s + (f.retailAmount || 0) - (f.ppvzForPay || 0) - netLog - (f.storageAmount || 0);
-  }, 0);
-
+  // Хранение
   const storage = financials.reduce((s, f) => s + (f.storageAmount || 0), 0);
+
+  // Платная приёмка
+  const acceptance = financials.reduce((s, f) => s + (f.acceptance || 0), 0);
+
+  // Штрафы
   const penalties = financials.reduce((s, f) => s + (f.penalty || 0), 0);
+
+  // Удержания
   const deductions = financials.reduce((s, f) => s + (f.deductionAmount || 0), 0);
+
+  // Компенсации (доплаты)
   const compensation = financials.reduce((s, f) => s + (f.additionalPayment || 0), 0);
+
+  // Реклама
   const ads = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
 
-  // Проценты от netRetail (как в MPFact)
-  const pct = (v: number) => (netRetail > 0 ? (v / netRetail) * 100 : 0);
   const commissionPercent = pct(commission);
   const logisticsPercent = pct(logistics);
   const storagePercent = pct(storage);
+  const acceptancePercent = pct(acceptance);
   const adsPercent = pct(ads);
   const penaltiesPercent = pct(penalties);
   const deductionsPercent = pct(deductions);
   const compensationPercent = pct(compensation);
 
-  const totalExpenses = commission + logistics + storage + ads + penalties + deductions - compensation;
-  const totalExpensesPercent = pct(totalExpenses);
+  // Итого расходы МП (как в МП Факт — без рекламы, она отдельно)
+  const mpExpenses = commission + logistics + storage + acceptance + penalties + deductions - compensation;
+  const mpExpensesPercent = pct(mpExpenses);
 
-  // ── Маржинальная прибыль ──
-  const marginalProfit = grossProfit - totalExpenses;
-  const marginalProfitPercent = pct(marginalProfit);
+  // ── Прибыль до налога = Валовая прибыль - Расходы МП - Реклама ──
+  const profitBeforeTax = grossProfit - mpExpenses - ads;
+  const profitBeforeTaxPercent = pct(profitBeforeTax);
 
-  // ── Налог (УСН 6% от реальной выручки forPay) ──
-  const tax = revenueForPay * TAX_RATE;
+  // ── Налог (УСН 6% от выручки со скидкой WB — как в МП Факт) ──
+  const tax = revenueWbDisc * TAX_RATE;
   const taxPercent = pct(tax);
 
   // ── Чистая прибыль ──
-  const profit = marginalProfit - tax;
+  const profit = profitBeforeTax - tax;
   const profitPercent = pct(profit);
 
-  // ── ROI = прибыль / (себестоимость + реклама) ──
-  const totalInvestment = cogs + ads;
-  const roi = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0;
+  // ── ROI = прибыль / себестоимость (как в МП Факт) ──
+  const roi = cogs > 0 ? (profit / cogs) * 100 : 0;
 
   return {
     openCardCount, addToCartCount, crToCart, crToOrder,
     ordersRevenue, ordersCount, avgOrderValue, cancelledRevenue, cancelledCount, cancelRate,
-    salesRetail, returnsRetail, netRetail,
-    salesForPay, returnsForPay, revenueForPay, avgCheckForPay,
-    salesCount, returnsCount, returnRate, buyoutsCount,
-    revenuePercent, wbDiscount, wbDiscountPercent,
+    salesSeller, returnsSeller, revenueSeller,
+    salesWbDisc, returnsWbDisc, revenueWbDisc,
+    forPaySales, forPayReturns, forPayTotal,
+    avgCheck, salesCount, returnsCount, returnRate, buyoutsCount,
     cogs, cogsPercent, grossProfit, grossProfitPercent,
     commission, commissionPercent, logistics, logisticsPercent,
-    storage, storagePercent, ads, adsPercent,
-    penalties, penaltiesPercent, deductions, deductionsPercent,
-    compensation, compensationPercent,
-    totalExpenses, totalExpensesPercent,
-    marginalProfit, marginalProfitPercent, tax, taxPercent,
+    storage, storagePercent, acceptance, acceptancePercent,
+    ads, adsPercent, penalties, penaltiesPercent,
+    deductions, deductionsPercent, compensation, compensationPercent,
+    mpExpenses, mpExpensesPercent,
+    profitBeforeTax, profitBeforeTaxPercent, tax, taxPercent,
     profit, profitPercent, roi,
   };
 }

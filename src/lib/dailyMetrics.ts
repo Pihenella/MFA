@@ -1,10 +1,10 @@
-import type { Sale, Order, Financial, Cost, Campaign } from "./metrics";
+import type { Order, Financial, Cost, Campaign } from "./metrics";
 
 export type DailyDataPoint = {
   date: string;
-  revenue: number;
-  salesRevenue: number;
-  returnsRevenue: number;
+  revenueSeller: number;
+  salesSeller: number;
+  returnsSeller: number;
   ordersRevenue: number;
   salesCount: number;
   ordersCount: number;
@@ -17,54 +17,69 @@ export type DailyDataPoint = {
   storage: number;
   ads: number;
   penalties: number;
-  totalExpenses: number;
+  mpExpenses: number;
   profit: number;
   profitPercent: number;
   returnRate: number;
 };
 
 export type AggregationInput = {
-  sales: Sale[];
   orders: Order[];
-  financials: Financial[];
+  financials: (Financial & { dateFrom?: string })[];
   costs: Cost[];
   campaigns: (Campaign & { updatedAt?: number })[];
 };
 
 export function aggregateByDay(input: AggregationInput): DailyDataPoint[] {
-  const { sales, orders, financials, costs, campaigns } = input;
+  const { orders, financials, costs, campaigns } = input;
 
   const costMap = new Map<number, number>();
   for (const c of costs) costMap.set(c.nmId, c.cost);
 
-  const days = new Map<string, DailyDataPoint>();
+  const days = new Map<string, DailyDataPoint & {
+    forPayTotal: number;
+    salesByNm: Map<number, number>;
+    returnsByNm: Map<number, number>;
+  }>();
 
   const getDay = (date: string) => {
     if (!days.has(date)) {
       days.set(date, {
         date,
-        revenue: 0, salesRevenue: 0, returnsRevenue: 0, ordersRevenue: 0,
+        revenueSeller: 0, salesSeller: 0, returnsSeller: 0, ordersRevenue: 0,
         salesCount: 0, ordersCount: 0, returnsCount: 0, buyoutsCount: 0,
         cogs: 0, grossProfit: 0, commission: 0, logistics: 0,
-        storage: 0, ads: 0, penalties: 0, totalExpenses: 0,
+        storage: 0, ads: 0, penalties: 0, mpExpenses: 0,
         profit: 0, profitPercent: 0, returnRate: 0,
+        forPayTotal: 0,
+        salesByNm: new Map(),
+        returnsByNm: new Map(),
       });
     }
     return days.get(date)!;
   };
 
-  // Sales
-  for (const s of sales) {
-    const d = getDay(s.date);
-    if (s.isReturn) {
-      d.returnsRevenue += s.priceWithDisc;
-      d.returnsCount += s.quantity;
-    } else {
-      d.salesRevenue += s.priceWithDisc;
-      d.salesCount += s.quantity;
-      d.buyoutsCount += s.quantity;
-      d.cogs += (costMap.get(s.nmId) ?? 0) * s.quantity;
+  // Financials — единый источник для P&L (как МП Факт)
+  for (const f of financials) {
+    const date = f.dateFrom ?? "";
+    if (!date) continue;
+    const d = getDay(date);
+
+    if (f.docTypeName === "Продажа") {
+      d.salesSeller += f.retailAmount || 0;
+      d.forPayTotal += f.ppvzForPay || 0;
+      d.salesCount += 1;
+      d.salesByNm.set(f.nmId, (d.salesByNm.get(f.nmId) ?? 0) + 1);
+    } else if (f.docTypeName === "Возврат") {
+      d.returnsSeller += Math.abs(f.retailAmount || 0);
+      d.forPayTotal -= Math.abs(f.ppvzForPay || 0);
+      d.returnsCount += 1;
+      d.returnsByNm.set(f.nmId, (d.returnsByNm.get(f.nmId) ?? 0) + 1);
     }
+
+    d.logistics += (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
+    d.storage += f.storageAmount || 0;
+    d.penalties += f.penalty || 0;
   }
 
   // Orders
@@ -73,22 +88,6 @@ export function aggregateByDay(input: AggregationInput): DailyDataPoint[] {
     const d = getDay(o.date);
     d.ordersRevenue += o.totalPrice;
     d.ordersCount += o.quantity;
-  }
-
-  // Financials — use dateFrom as the day key
-  for (const f of financials) {
-    const date = f.docTypeName ? (f as { dateFrom?: string }).dateFrom ?? "" : "";
-    if (!date) continue;
-    const d = getDay(date);
-
-    const netLogistics = (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
-    d.logistics += netLogistics;
-    d.storage += f.storageAmount || 0;
-    d.penalties += f.penalty || 0;
-
-    if (f.docTypeName === "Продажа") {
-      d.commission += (f.retailAmount || 0) - (f.ppvzForPay || 0) - netLogistics - (f.storageAmount || 0);
-    }
   }
 
   // Campaigns
@@ -101,15 +100,33 @@ export function aggregateByDay(input: AggregationInput): DailyDataPoint[] {
 
   // Finalize each day
   for (const d of days.values()) {
-    d.revenue = d.salesRevenue - d.returnsRevenue;
-    d.grossProfit = d.revenue - d.cogs;
-    d.totalExpenses = d.commission + d.logistics + d.storage + d.ads + d.penalties;
-    d.profit = d.grossProfit - d.totalExpenses;
-    d.profitPercent = d.revenue > 0 ? (d.profit / d.revenue) * 100 : 0;
-    d.returnRate = d.salesCount > 0 ? (d.returnsCount / d.salesCount) * 100 : 0;
+    d.revenueSeller = d.salesSeller - d.returnsSeller;
+    d.buyoutsCount = d.salesCount - d.returnsCount;
+
+    // COGS from financials nmId counts
+    let cogs = 0;
+    const allNmIds = new Set([...d.salesByNm.keys(), ...d.returnsByNm.keys()]);
+    for (const nmId of allNmIds) {
+      const unitCost = costMap.get(nmId) ?? 0;
+      const sold = d.salesByNm.get(nmId) ?? 0;
+      const returned = d.returnsByNm.get(nmId) ?? 0;
+      cogs += unitCost * (sold - returned);
+    }
+    d.cogs = cogs;
+
+    // Комиссия = revenueSeller - forPayTotal (как в МП Факт)
+    d.commission = d.revenueSeller - d.forPayTotal;
+    // Валовая прибыль = revenueSeller - cogs
+    d.grossProfit = d.revenueSeller - d.cogs;
+    d.mpExpenses = d.commission + d.logistics + d.storage + d.ads + d.penalties;
+    d.profit = d.grossProfit - d.mpExpenses;
+    d.profitPercent = d.revenueSeller > 0 ? (d.profit / d.revenueSeller) * 100 : 0;
+    d.returnRate = d.buyoutsCount > 0 ? (d.returnsCount / d.buyoutsCount) * 100 : 0;
   }
 
-  return Array.from(days.values()).sort((a, b) => a.date.localeCompare(b.date));
+  return Array.from(days.values())
+    .map(({ salesByNm, returnsByNm, forPayTotal, ...rest }) => rest)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export function aggregateByWeek(dailyData: DailyDataPoint[]): DailyDataPoint[] {
@@ -138,17 +155,17 @@ function aggregateGroup(
     if (!groups.has(key)) {
       groups.set(key, {
         date: key,
-        revenue: 0, salesRevenue: 0, returnsRevenue: 0, ordersRevenue: 0,
+        revenueSeller: 0, salesSeller: 0, returnsSeller: 0, ordersRevenue: 0,
         salesCount: 0, ordersCount: 0, returnsCount: 0, buyoutsCount: 0,
         cogs: 0, grossProfit: 0, commission: 0, logistics: 0,
-        storage: 0, ads: 0, penalties: 0, totalExpenses: 0,
+        storage: 0, ads: 0, penalties: 0, mpExpenses: 0,
         profit: 0, profitPercent: 0, returnRate: 0,
       });
     }
     const g = groups.get(key)!;
-    g.revenue += d.revenue;
-    g.salesRevenue += d.salesRevenue;
-    g.returnsRevenue += d.returnsRevenue;
+    g.revenueSeller += d.revenueSeller;
+    g.salesSeller += d.salesSeller;
+    g.returnsSeller += d.returnsSeller;
     g.ordersRevenue += d.ordersRevenue;
     g.salesCount += d.salesCount;
     g.ordersCount += d.ordersCount;
@@ -161,14 +178,14 @@ function aggregateGroup(
     g.storage += d.storage;
     g.ads += d.ads;
     g.penalties += d.penalties;
-    g.totalExpenses += d.totalExpenses;
+    g.mpExpenses += d.mpExpenses;
     g.profit += d.profit;
   }
 
   // Recalculate percent-based fields
   for (const g of groups.values()) {
-    g.profitPercent = g.revenue > 0 ? (g.profit / g.revenue) * 100 : 0;
-    g.returnRate = g.salesCount > 0 ? (g.returnsCount / g.salesCount) * 100 : 0;
+    g.profitPercent = g.revenueSeller > 0 ? (g.profit / g.revenueSeller) * 100 : 0;
+    g.returnRate = g.buyoutsCount > 0 ? (g.returnsCount / g.buyoutsCount) * 100 : 0;
   }
 
   return Array.from(groups.values()).sort((a, b) => a.date.localeCompare(b.date));

@@ -116,6 +116,8 @@ export const upsertFinancials = internalMutation({
         deliveryAmount: Number(r.delivery_amount) || 0,
         stornoDeliveryAmount: Number(r.storno_delivery_amount) || 0,
         ppvzForPay: Number(r.ppvz_for_pay) || 0,
+        ppvzSalesTotal: r.ppvz_sales_total != null ? Number(r.ppvz_sales_total) : undefined,
+        acceptance: r.acceptance != null ? Number(r.acceptance) : undefined,
         penalty: Number(r.penalty) || 0,
         additionalPayment: Number(r.additional_payment) || 0,
         storageAmount: Number(r.storage_amount ?? r.storage_fee) || 0,
@@ -155,7 +157,7 @@ export const syncStatistics = internalAction({
     const headers: Record<string, string> = { Authorization: apiKey };
     const today = new Date().toISOString().slice(0, 10);
     const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
     // 1. Orders
     try {
@@ -227,7 +229,7 @@ export const syncStatistics = internalAction({
       let totalCount = 0;
       while (true) {
         const res = await fetchWithRetry(
-          `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${thirtyDaysAgo}&dateTo=${today}&limit=1000&rrdid=${rrdid}`,
+          `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${ninetyDaysAgo}&dateTo=${today}&limit=1000&rrdid=${rrdid}`,
           { headers },
         );
         await assertOk(res);

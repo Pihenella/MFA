@@ -37,10 +37,10 @@ export default function DashboardPage() {
   const mNow = computeDashboardMetrics(now);
   const mPrev = computeDashboardMetrics(prev);
 
-  // Товары с продажами, но без себестоимости
+  // Товары с продажами в financials, но без себестоимости
   const costSet = new Set(now.costs.filter((c) => c.cost > 0).map((c) => c.nmId));
-  const salesNmIds = new Set(now.sales.filter((s) => !s.isReturn).map((s) => s.nmId));
-  const missingCostCount = [...salesNmIds].filter((id) => !costSet.has(id)).length;
+  const finNmIds = new Set(now.financials.filter((f) => f.docTypeName === "Продажа").map((f) => f.nmId));
+  const missingCostCount = [...finNmIds].filter((id) => !costSet.has(id)).length;
 
   return (
     <div className="space-y-6">
@@ -107,27 +107,29 @@ export default function DashboardPage() {
 
       {/* 3. Выручка и валовая прибыль */}
       <DashboardSection title="Выручка и валовая прибыль">
-        {/* Строка 1: Продажи по цене продавца */}
-        <MetricCard label="Продажи по цене продавца" value={mNow.salesRetail} prevValue={mPrev.salesRetail} delta={pctDelta(mNow.salesRetail, mPrev.salesRetail)} unit="₽" />
-        <MetricCard label="Возвраты по цене продавца" value={-mNow.returnsRetail} prevValue={-mPrev.returnsRetail} delta={pctDelta(mNow.returnsRetail, mPrev.returnsRetail)} unit="₽" invertColors />
-        <MetricCard label="Выручка по цене продавца" value={mNow.netRetail} prevValue={mPrev.netRetail} delta={pctDelta(mNow.netRetail, mPrev.netRetail)} unit="₽" />
-        <MetricCard label="Средний чек продаж" value={mNow.salesCount > 0 ? mNow.salesRetail / mNow.salesCount : 0} prevValue={mPrev.salesCount > 0 ? mPrev.salesRetail / mPrev.salesCount : 0} delta={pctDelta(mNow.salesCount > 0 ? mNow.salesRetail / mNow.salesCount : 0, mPrev.salesCount > 0 ? mPrev.salesRetail / mPrev.salesCount : 0)} unit="₽" />
+        {/* Строка 1: Продажи по цене продавца (из financials) */}
+        <MetricCard label="Продажи (цена продавца)" value={mNow.salesSeller} prevValue={mPrev.salesSeller} delta={pctDelta(mNow.salesSeller, mPrev.salesSeller)} unit="₽" />
+        <MetricCard label="Возвраты (цена продавца)" value={-mNow.returnsSeller} prevValue={-mPrev.returnsSeller} delta={pctDelta(mNow.returnsSeller, mPrev.returnsSeller)} unit="₽" invertColors />
+        <MetricCard label="Выручка (цена продавца)" value={mNow.revenueSeller} prevValue={mPrev.revenueSeller} delta={pctDelta(mNow.revenueSeller, mPrev.revenueSeller)} unit="₽" />
 
-        {/* Строка 2: ForPay — выручка с учётом скидок ВБ */}
-        <MetricCard label="Возвраты с учётом скидок ВБ" value={-mNow.returnsForPay} prevValue={-mPrev.returnsForPay} delta={pctDelta(mNow.returnsForPay, mPrev.returnsForPay)} unit="₽" invertColors />
-        <MetricCard label="Выручка с учётом скидок ВБ" value={mNow.revenueForPay} prevValue={mPrev.revenueForPay} delta={pctDelta(mNow.revenueForPay, mPrev.revenueForPay)} unit="₽" />
-        <MetricCard label="Средний чек с учётом скидок ВБ" value={mNow.avgCheckForPay} prevValue={mPrev.avgCheckForPay} delta={pctDelta(mNow.avgCheckForPay, mPrev.avgCheckForPay)} unit="₽" />
+        {/* Строка 2: Со скидкой WB */}
+        <MetricCard label="Продажи (со скидкой WB)" value={mNow.salesWbDisc} prevValue={mPrev.salesWbDisc} delta={pctDelta(mNow.salesWbDisc, mPrev.salesWbDisc)} unit="₽" />
+        <MetricCard label="Возвраты (со скидкой WB)" value={-mNow.returnsWbDisc} prevValue={-mPrev.returnsWbDisc} delta={pctDelta(mNow.returnsWbDisc, mPrev.returnsWbDisc)} unit="₽" invertColors />
+        <MetricCard label="Выручка (со скидкой WB)" value={mNow.revenueWbDisc} prevValue={mPrev.revenueWbDisc} delta={pctDelta(mNow.revenueWbDisc, mPrev.revenueWbDisc)} unit="₽" />
+
+        {/* Строка 3: К перечислению */}
+        <MetricCard label="К перечислению (продажи)" value={mNow.forPaySales} prevValue={mPrev.forPaySales} delta={pctDelta(mNow.forPaySales, mPrev.forPaySales)} unit="₽" />
+        <MetricCard label="К перечислению (возвраты)" value={-mNow.forPayReturns} prevValue={-mPrev.forPayReturns} delta={pctDelta(mNow.forPayReturns, mPrev.forPayReturns)} unit="₽" invertColors />
+        <MetricCard label="К перечислению итого" value={mNow.forPayTotal} prevValue={mPrev.forPayTotal} delta={pctDelta(mNow.forPayTotal, mPrev.forPayTotal)} unit="₽" />
+
+        {/* Строка 4: Количества */}
         <MetricCard label="Продажи" value={mNow.salesCount} prevValue={mPrev.salesCount} delta={pctDelta(mNow.salesCount, mPrev.salesCount)} unit="шт" />
         <MetricCard label="Возвраты" value={-mNow.returnsCount} prevValue={-mPrev.returnsCount} delta={pctDelta(mNow.returnsCount, mPrev.returnsCount)} unit="шт" invertColors />
-
-        {/* Строка 3: Ставки и проценты */}
-        <MetricCard label="Возвраты" value={-mNow.returnRate} prevValue={-mPrev.returnRate} delta={pctDelta(mNow.returnRate, mPrev.returnRate)} unit="%" invertColors />
         <MetricCard label="Выкупы" value={mNow.buyoutsCount} prevValue={mPrev.buyoutsCount} delta={pctDelta(mNow.buyoutsCount, mPrev.buyoutsCount)} unit="шт" />
-        <MetricCard label="Выручка" value={mNow.revenuePercent} prevValue={mPrev.revenuePercent} delta={pctDelta(mNow.revenuePercent, mPrev.revenuePercent)} unit="%" />
-        <MetricCard label="Скидки ВБ" value={-mNow.wbDiscount} prevValue={-mPrev.wbDiscount} delta={pctDelta(mNow.wbDiscount, mPrev.wbDiscount)} unit="₽" invertColors />
-        <MetricCard label="Скидки ВБ" value={-mNow.wbDiscountPercent} prevValue={-mPrev.wbDiscountPercent} delta={pctDelta(mNow.wbDiscountPercent, mPrev.wbDiscountPercent)} unit="%" invertColors />
+        <MetricCard label="% возвратов" value={-mNow.returnRate} prevValue={-mPrev.returnRate} delta={pctDelta(mNow.returnRate, mPrev.returnRate)} unit="%" invertColors />
+        <MetricCard label="Средний чек" value={mNow.avgCheck} prevValue={mPrev.avgCheck} delta={pctDelta(mNow.avgCheck, mPrev.avgCheck)} unit="₽" />
 
-        {/* Строка 4: Себестоимость и валовая прибыль */}
+        {/* Строка 5: Себестоимость и валовая прибыль */}
         <MetricCard label="Себестоимость" value={-mNow.cogs} prevValue={-mPrev.cogs} delta={pctDelta(mNow.cogs, mPrev.cogs)} unit="₽" invertColors />
         <MetricCard label="Себестоимость" value={-mNow.cogsPercent} prevValue={-mPrev.cogsPercent} delta={pctDelta(mNow.cogsPercent, mPrev.cogsPercent)} unit="%" invertColors />
         <MetricCard label="Валовая прибыль" value={mNow.grossProfit} prevValue={mPrev.grossProfit} delta={pctDelta(mNow.grossProfit, mPrev.grossProfit)} unit="₽" />
@@ -140,28 +142,27 @@ export default function DashboardPage() {
         <MetricCard label="Комиссия" value={-mNow.commissionPercent} prevValue={-mPrev.commissionPercent} delta={pctDelta(mNow.commissionPercent, mPrev.commissionPercent)} unit="%" invertColors />
         <MetricCard label="Логистика" value={-mNow.logistics} prevValue={-mPrev.logistics} delta={pctDelta(mNow.logistics, mPrev.logistics)} unit="₽" invertColors />
         <MetricCard label="Логистика" value={-mNow.logisticsPercent} prevValue={-mPrev.logisticsPercent} delta={pctDelta(mNow.logisticsPercent, mPrev.logisticsPercent)} unit="%" invertColors />
-        <MetricCard label="Штрафы" value={-mNow.penalties} prevValue={-mPrev.penalties} delta={pctDelta(mNow.penalties, mPrev.penalties)} unit="₽" invertColors />
-        <MetricCard label="Штрафы" value={-mNow.penaltiesPercent} prevValue={-mPrev.penaltiesPercent} delta={pctDelta(mNow.penaltiesPercent, mPrev.penaltiesPercent)} unit="%" invertColors />
-        <MetricCard label="Удержания" value={-mNow.deductions} prevValue={-mPrev.deductions} delta={pctDelta(mNow.deductions, mPrev.deductions)} unit="₽" invertColors />
-        <MetricCard label="Удержания" value={-mNow.deductionsPercent} prevValue={-mPrev.deductionsPercent} delta={pctDelta(mNow.deductionsPercent, mPrev.deductionsPercent)} unit="%" invertColors />
         <MetricCard label="Хранение" value={-mNow.storage} prevValue={-mPrev.storage} delta={pctDelta(mNow.storage, mPrev.storage)} unit="₽" invertColors />
         <MetricCard label="Хранение" value={-mNow.storagePercent} prevValue={-mPrev.storagePercent} delta={pctDelta(mNow.storagePercent, mPrev.storagePercent)} unit="%" invertColors />
+        <MetricCard label="Платная приёмка" value={-mNow.acceptance} prevValue={-mPrev.acceptance} delta={pctDelta(mNow.acceptance, mPrev.acceptance)} unit="₽" invertColors />
+        <MetricCard label="Штрафы" value={-mNow.penalties} prevValue={-mPrev.penalties} delta={pctDelta(mNow.penalties, mPrev.penalties)} unit="₽" invertColors />
+        <MetricCard label="Штрафы" value={-mNow.penaltiesPercent} prevValue={-mPrev.penaltiesPercent} delta={pctDelta(mNow.penaltiesPercent, mPrev.penaltiesPercent)} unit="%" invertColors />
         <MetricCard label="Реклама" value={-mNow.ads} prevValue={-mPrev.ads} delta={pctDelta(mNow.ads, mPrev.ads)} unit="₽" invertColors />
         <MetricCard label="Реклама" value={-mNow.adsPercent} prevValue={-mPrev.adsPercent} delta={pctDelta(mNow.adsPercent, mPrev.adsPercent)} unit="%" invertColors />
+        <MetricCard label="Удержания" value={-mNow.deductions} prevValue={-mPrev.deductions} delta={pctDelta(mNow.deductions, mPrev.deductions)} unit="₽" invertColors />
         <MetricCard label="Компенсация" value={mNow.compensation} prevValue={mPrev.compensation} delta={pctDelta(mNow.compensation, mPrev.compensation)} unit="₽" />
-        <MetricCard label="Компенсация" value={mNow.compensationPercent} prevValue={mPrev.compensationPercent} delta={pctDelta(mNow.compensationPercent, mPrev.compensationPercent)} unit="%" />
-        <MetricCard label="Итого расходов ВБ" value={-mNow.totalExpenses} prevValue={-mPrev.totalExpenses} delta={pctDelta(mNow.totalExpenses, mPrev.totalExpenses)} unit="₽" invertColors />
-        <MetricCard label="Итого расходов ВБ" value={-mNow.totalExpensesPercent} prevValue={-mPrev.totalExpensesPercent} delta={pctDelta(mNow.totalExpensesPercent, mPrev.totalExpensesPercent)} unit="%" invertColors />
+        <MetricCard label="Расходы МП итого" value={-mNow.mpExpenses} prevValue={-mPrev.mpExpenses} delta={pctDelta(mNow.mpExpenses, mPrev.mpExpenses)} unit="₽" invertColors />
+        <MetricCard label="Расходы МП" value={-mNow.mpExpensesPercent} prevValue={-mPrev.mpExpensesPercent} delta={pctDelta(mNow.mpExpensesPercent, mPrev.mpExpensesPercent)} unit="%" invertColors />
       </DashboardSection>
 
-      {/* 5. Маржинальная прибыль и налоги */}
-      <DashboardSection title="Маржинальная прибыль и налоги">
-        <MetricCard label="Марж. прибыль" value={mNow.marginalProfit} prevValue={mPrev.marginalProfit} delta={pctDelta(mNow.marginalProfit, mPrev.marginalProfit)} unit="₽" />
-        <MetricCard label="Марж. прибыль" value={mNow.marginalProfitPercent} prevValue={mPrev.marginalProfitPercent} delta={pctDelta(mNow.marginalProfitPercent, mPrev.marginalProfitPercent)} unit="%" />
+      {/* 5. Прибыль и налоги */}
+      <DashboardSection title="Прибыль и налоги">
+        <MetricCard label="Прибыль до налога" value={mNow.profitBeforeTax} prevValue={mPrev.profitBeforeTax} delta={pctDelta(mNow.profitBeforeTax, mPrev.profitBeforeTax)} unit="₽" />
+        <MetricCard label="Прибыль до налога" value={mNow.profitBeforeTaxPercent} prevValue={mPrev.profitBeforeTaxPercent} delta={pctDelta(mNow.profitBeforeTaxPercent, mPrev.profitBeforeTaxPercent)} unit="%" />
         <MetricCard label="Налог" value={-mNow.tax} prevValue={-mPrev.tax} delta={pctDelta(mNow.tax, mPrev.tax)} unit="₽" invertColors />
         <MetricCard label="Налог" value={-mNow.taxPercent} prevValue={-mPrev.taxPercent} delta={pctDelta(mNow.taxPercent, mPrev.taxPercent)} unit="%" invertColors />
-        <MetricCard label="Прибыль после налога" value={mNow.profit} prevValue={mPrev.profit} delta={pctDelta(mNow.profit, mPrev.profit)} unit="₽" />
-        <MetricCard label="Прибыль после налога" value={mNow.profitPercent} prevValue={mPrev.profitPercent} delta={pctDelta(mNow.profitPercent, mPrev.profitPercent)} unit="%" />
+        <MetricCard label="Прибыль" value={mNow.profit} prevValue={mPrev.profit} delta={pctDelta(mNow.profit, mPrev.profit)} unit="₽" />
+        <MetricCard label="Прибыль" value={mNow.profitPercent} prevValue={mPrev.profitPercent} delta={pctDelta(mNow.profitPercent, mPrev.profitPercent)} unit="%" />
         <MetricCard label="ROI" value={mNow.roi} prevValue={mPrev.roi} delta={pctDelta(mNow.roi, mPrev.roi)} unit="%" />
       </DashboardSection>
     </div>

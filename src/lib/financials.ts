@@ -10,6 +10,8 @@ type FinancialRow = {
   stornoDeliveryAmount: number;
   deductionAmount: number;
   ppvzForPay: number;
+  ppvzSalesTotal?: number;
+  acceptance?: number;
   penalty: number;
   additionalPayment: number;
   storageAmount: number;
@@ -173,10 +175,13 @@ export function groupByReportFull(
     returnsSeller: number;
     forPaySales: number;
     forPayReturns: number;
+    salesWbDisc: number;
+    returnsWbDisc: number;
     salesQty: number;
     returnsQty: number;
     logistics: number;
     storage: number;
+    acceptance: number;
     penalties: number;
     surcharges: number;
     deductions: number;
@@ -195,10 +200,13 @@ export function groupByReportFull(
         returnsSeller: 0,
         forPaySales: 0,
         forPayReturns: 0,
+        salesWbDisc: 0,
+        returnsWbDisc: 0,
         salesQty: 0,
         returnsQty: 0,
         logistics: 0,
         storage: 0,
+        acceptance: 0,
         penalties: 0,
         surcharges: 0,
         deductions: 0,
@@ -213,16 +221,19 @@ export function groupByReportFull(
     if (r.docTypeName === "Продажа") {
       s.salesSeller += r.retailAmount;
       s.forPaySales += r.ppvzForPay;
+      s.salesWbDisc += r.ppvzSalesTotal ?? r.retailAmount ?? 0;
       s.salesQty += 1;
       s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
     } else if (r.docTypeName === "Возврат") {
       s.returnsSeller += Math.abs(r.retailAmount);
       s.forPayReturns += Math.abs(r.ppvzForPay);
+      s.returnsWbDisc += Math.abs(r.ppvzSalesTotal ?? r.retailAmount ?? 0);
       s.returnsQty += 1;
       s.returnsByNm.set(r.nmId, (s.returnsByNm.get(r.nmId) ?? 0) + 1);
     }
     s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
     s.storage += r.storageAmount;
+    s.acceptance += r.acceptance ?? 0;
     s.penalties += r.penalty;
     s.surcharges += r.additionalPayment;
     s.deductions += r.deductionAmount || 0;
@@ -236,8 +247,9 @@ export function groupByReportFull(
   for (const s of map.values()) {
     const revenueSeller = s.salesSeller - s.returnsSeller;
     const forPayTotal = s.forPaySales - s.forPayReturns;
+    const revenueWbDisc = s.salesWbDisc - s.returnsWbDisc;
     const buyoutsQty = s.salesQty - s.returnsQty;
-    const returnsPct = s.salesQty > 0 ? (s.returnsQty / s.salesQty) * 100 : 0;
+    const returnsPct = buyoutsQty > 0 ? (s.returnsQty / buyoutsQty) * 100 : 0;
 
     // Cost: sum cost * net qty per nmId
     let costTotal = 0;
@@ -248,11 +260,17 @@ export function groupByReportFull(
       costTotal += unitCost * (sold - returned);
     }
 
-    const commission = s.salesSeller - s.forPaySales - s.logistics;
-    const grossProfit = forPayTotal - costTotal;
-    const mpExpenses = Math.abs(commission) + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.penalties) + Math.abs(s.deductions);
-    const profitBeforeTax = forPayTotal - costTotal - adsPerReport;
-    const profit = profitBeforeTax;
+    // Комиссия = revenueSeller - forPayTotal (как в МП Факт)
+    const commission = revenueSeller - forPayTotal;
+    // Валовая прибыль = revenueSeller - себестоимость (как в МП Факт)
+    const grossProfit = revenueSeller - costTotal;
+    // Расходы МП = комиссия + логистика + хранение + приёмка + штрафы + удержания - компенсации
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + Math.abs(s.deductions) - s.surcharges;
+    // Прибыль до налога = валовая прибыль - расходы МП - реклама
+    const profitBeforeTax = grossProfit - mpExpenses - adsPerReport;
+    // Налог = 6% от выручки со скидкой WB
+    const tax = revenueWbDisc * 0.06;
+    const profit = profitBeforeTax - tax;
     const roi = costTotal > 0 ? (profit / costTotal) * 100 : 0;
 
     const pct = (val: number, base: number) => base !== 0 ? (val / Math.abs(base)) * 100 : 0;
@@ -267,9 +285,9 @@ export function groupByReportFull(
       salesSeller: s.salesSeller,
       returnsSeller: s.returnsSeller,
       revenueSeller,
-      salesWbDisc: null,
-      returnsWbDisc: null,
-      revenueWbDisc: null,
+      salesWbDisc: s.salesWbDisc,
+      returnsWbDisc: -s.returnsWbDisc,
+      revenueWbDisc,
       forPaySales: s.forPaySales,
       forPayReturns: -s.forPayReturns,
       forPayTotal,
@@ -281,8 +299,8 @@ export function groupByReportFull(
       costPct: pct(-costTotal, revenueSeller),
       grossProfit,
       grossProfitPct: pct(grossProfit, revenueSeller),
-      commission: -Math.abs(commission),
-      commissionPct: pct(-Math.abs(commission), revenueSeller),
+      commission: -commission,
+      commissionPct: pct(-commission, revenueSeller),
       logistics: -Math.abs(s.logistics),
       logisticsPct: pct(-Math.abs(s.logistics), revenueSeller),
       surcharges: s.surcharges,
@@ -291,8 +309,8 @@ export function groupByReportFull(
       penaltiesPct: pct(-Math.abs(s.penalties), revenueSeller),
       storage: -Math.abs(s.storage),
       storagePct: pct(-Math.abs(s.storage), revenueSeller),
-      paidAcceptance: null,
-      paidAcceptancePct: null,
+      paidAcceptance: -Math.abs(s.acceptance),
+      paidAcceptancePct: pct(-Math.abs(s.acceptance), revenueSeller),
       advertising: -adsPerReport,
       loanPayment: null,
       advertisingPct: pct(-adsPerReport, revenueSeller),
@@ -303,8 +321,8 @@ export function groupByReportFull(
       mpExpenses: -mpExpenses,
       profitBeforeTax,
       profitBeforeTaxPct: pct(profitBeforeTax, revenueSeller),
-      tax: null,
-      taxPct: null,
+      tax: -tax,
+      taxPct: pct(-tax, revenueSeller),
       payoutToAccount: forPayTotal,
       payoutToAccountPct: pct(forPayTotal, revenueSeller),
     });
@@ -387,10 +405,13 @@ export function groupByPeriodFull(
     returnsSeller: number;
     forPaySales: number;
     forPayReturns: number;
+    salesWbDisc: number;
+    returnsWbDisc: number;
     salesQty: number;
     returnsQty: number;
     logistics: number;
     storage: number;
+    acceptance: number;
     penalties: number;
     surcharges: number;
     deductions: number;
@@ -409,10 +430,13 @@ export function groupByPeriodFull(
         returnsSeller: 0,
         forPaySales: 0,
         forPayReturns: 0,
+        salesWbDisc: 0,
+        returnsWbDisc: 0,
         salesQty: 0,
         returnsQty: 0,
         logistics: 0,
         storage: 0,
+        acceptance: 0,
         penalties: 0,
         surcharges: 0,
         deductions: 0,
@@ -428,16 +452,19 @@ export function groupByPeriodFull(
     if (r.docTypeName === "Продажа") {
       s.salesSeller += r.retailAmount;
       s.forPaySales += r.ppvzForPay;
+      s.salesWbDisc += r.ppvzSalesTotal ?? r.retailAmount ?? 0;
       s.salesQty += 1;
       s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
     } else if (r.docTypeName === "Возврат") {
       s.returnsSeller += Math.abs(r.retailAmount);
       s.forPayReturns += Math.abs(r.ppvzForPay);
+      s.returnsWbDisc += Math.abs(r.ppvzSalesTotal ?? r.retailAmount ?? 0);
       s.returnsQty += 1;
       s.returnsByNm.set(r.nmId, (s.returnsByNm.get(r.nmId) ?? 0) + 1);
     }
     s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
     s.storage += r.storageAmount;
+    s.acceptance += r.acceptance ?? 0;
     s.penalties += r.penalty;
     s.surcharges += r.additionalPayment;
     s.deductions += r.deductionAmount || 0;
@@ -451,8 +478,9 @@ export function groupByPeriodFull(
   for (const s of map.values()) {
     const revenueSeller = s.salesSeller - s.returnsSeller;
     const forPayTotal = s.forPaySales - s.forPayReturns;
+    const revenueWbDisc = s.salesWbDisc - s.returnsWbDisc;
     const buyoutsQty = s.salesQty - s.returnsQty;
-    const returnsPct = s.salesQty > 0 ? (s.returnsQty / s.salesQty) * 100 : 0;
+    const returnsPct = buyoutsQty > 0 ? (s.returnsQty / buyoutsQty) * 100 : 0;
 
     let costTotal = 0;
     for (const nmId of s.nmIds) {
@@ -462,11 +490,14 @@ export function groupByPeriodFull(
       costTotal += unitCost * (sold - returned);
     }
 
-    const commission = s.salesSeller - s.forPaySales - s.logistics;
-    const grossProfit = forPayTotal - costTotal;
-    const mpExpenses = Math.abs(commission) + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.penalties) + Math.abs(s.deductions);
-    const profitBeforeTax = forPayTotal - costTotal - adsPerPeriod;
-    const profit = profitBeforeTax;
+    // Комиссия = revenueSeller - forPayTotal (как в МП Факт)
+    const commission = revenueSeller - forPayTotal;
+    // Валовая прибыль = revenueSeller - себестоимость
+    const grossProfit = revenueSeller - costTotal;
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + Math.abs(s.deductions) - s.surcharges;
+    const profitBeforeTax = grossProfit - mpExpenses - adsPerPeriod;
+    const tax = revenueWbDisc * 0.06;
+    const profit = profitBeforeTax - tax;
     const roi = costTotal > 0 ? (profit / costTotal) * 100 : 0;
 
     const pct = (val: number, base: number) => base !== 0 ? (val / Math.abs(base)) * 100 : 0;
@@ -482,9 +513,9 @@ export function groupByPeriodFull(
       salesSeller: s.salesSeller,
       returnsSeller: s.returnsSeller,
       revenueSeller,
-      salesWbDisc: null,
-      returnsWbDisc: null,
-      revenueWbDisc: null,
+      salesWbDisc: s.salesWbDisc,
+      returnsWbDisc: -s.returnsWbDisc,
+      revenueWbDisc,
       forPaySales: s.forPaySales,
       forPayReturns: -s.forPayReturns,
       forPayTotal,
@@ -496,8 +527,8 @@ export function groupByPeriodFull(
       costPct: pct(-costTotal, revenueSeller),
       grossProfit,
       grossProfitPct: pct(grossProfit, revenueSeller),
-      commission: -Math.abs(commission),
-      commissionPct: pct(-Math.abs(commission), revenueSeller),
+      commission: -commission,
+      commissionPct: pct(-commission, revenueSeller),
       logistics: -Math.abs(s.logistics),
       logisticsPct: pct(-Math.abs(s.logistics), revenueSeller),
       surcharges: s.surcharges,
@@ -506,8 +537,8 @@ export function groupByPeriodFull(
       penaltiesPct: pct(-Math.abs(s.penalties), revenueSeller),
       storage: -Math.abs(s.storage),
       storagePct: pct(-Math.abs(s.storage), revenueSeller),
-      paidAcceptance: null,
-      paidAcceptancePct: null,
+      paidAcceptance: -Math.abs(s.acceptance),
+      paidAcceptancePct: pct(-Math.abs(s.acceptance), revenueSeller),
       advertising: -adsPerPeriod,
       advertisingPct: pct(-adsPerPeriod, revenueSeller),
       otherDeductions: -Math.abs(s.deductions),
@@ -517,8 +548,8 @@ export function groupByPeriodFull(
       mpExpenses: -mpExpenses,
       profitBeforeTax,
       profitBeforeTaxPct: pct(profitBeforeTax, revenueSeller),
-      tax: null,
-      taxPct: null,
+      tax: -tax,
+      taxPct: pct(-tax, revenueSeller),
     });
   }
 

@@ -90,32 +90,35 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
     const nmSales = salesByNm.get(nmId) ?? [];
     const nmFin = finByNm.get(nmId) ?? [];
 
-    const salesOnly = nmSales.filter((s) => !s.isReturn);
-    const returnsOnly = nmSales.filter((s) => s.isReturn);
+    // Все финансовые метрики из financials (как МП Факт)
+    const salesFin = nmFin.filter((f) => f.docTypeName === "Продажа");
+    const returnsFin = nmFin.filter((f) => f.docTypeName === "Возврат");
 
-    const salesRevenue = salesOnly.reduce((s, x) => s + x.priceWithDisc, 0);
-    const returnsRevenue = returnsOnly.reduce((s, x) => s + x.priceWithDisc, 0);
+    const salesRevenue = salesFin.reduce((s, f) => s + (f.retailAmount || 0), 0);
+    const returnsRevenue = returnsFin.reduce((s, f) => s + Math.abs(f.retailAmount || 0), 0);
     const revenue = salesRevenue - returnsRevenue;
-    const salesCount = salesOnly.reduce((s, x) => s + x.quantity, 0);
-    const returnsCount = returnsOnly.reduce((s, x) => s + x.quantity, 0);
-    const returnRate = salesCount > 0 ? (returnsCount / salesCount) * 100 : 0;
+    const salesCount = salesFin.length;
+    const returnsCount = returnsFin.length;
+    const buyouts = salesCount - returnsCount;
+    const returnRate = buyouts > 0 ? (returnsCount / buyouts) * 100 : 0;
 
     const unitCost = costMap.get(nmId) ?? 0;
-    const cogs = unitCost * salesCount;
+    const cogs = unitCost * buyouts;
+    // Валовая прибыль = выручка по цене продавца - себестоимость
     const grossProfit = revenue - cogs;
 
-    // Financial metrics per product
+    // К перечислению
+    const forPaySales = salesFin.reduce((s, f) => s + (f.ppvzForPay || 0), 0);
+    const forPayReturns = returnsFin.reduce((s, f) => s + Math.abs(f.ppvzForPay || 0), 0);
+    const forPayTotal = forPaySales - forPayReturns;
+
+    // Комиссия = выручка - к перечислению (как в МП Факт)
+    const commission = revenue - forPayTotal;
+
     const logistics = nmFin.reduce(
       (s, f) => s + (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0),
       0,
     );
-
-    const salesFin = nmFin.filter((f) => f.docTypeName === "Продажа");
-    const commission = salesFin.reduce((s, f) => {
-      const netLogistics = (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
-      return s + (f.retailAmount || 0) - (f.ppvzForPay || 0) - netLogistics - (f.storageAmount || 0);
-    }, 0);
-
     const storage = nmFin.reduce((s, f) => s + (f.storageAmount || 0), 0);
     const penalties = nmFin.reduce((s, f) => s + (f.penalty || 0), 0);
     const ads = adsByNm.get(nmId) ?? 0;

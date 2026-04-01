@@ -21,7 +21,7 @@ export function RevenueChart({ data }: Props) {
           <YAxis tickFormatter={formatRub} tick={{ fontSize: 11 }} />
           <Tooltip formatter={(v) => `${Math.round(Number(v)).toLocaleString("ru")} ₽`} />
           <Legend />
-          <Area type="monotone" dataKey="revenue" name="Выручка" stroke="#7c3aed" fill="#ede9fe" strokeWidth={2} />
+          <Area type="monotone" dataKey="revenueSeller" name="Выручка" stroke="#7c3aed" fill="#ede9fe" strokeWidth={2} />
           <Area type="monotone" dataKey="profit" name="Прибыль" stroke="#059669" fill="#d1fae5" strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
