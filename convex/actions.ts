@@ -2,21 +2,25 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
-const CATEGORY_ACTIONS: Record<string, any> = {
-  statistics_orders: internal.sync.syncStatistics.syncOrders,
-  statistics_sales: internal.sync.syncStatistics.syncSales,
-  statistics_stocks: internal.sync.syncStatistics.syncStocks,
-  statistics_financials: internal.sync.syncStatistics.syncFinancials,
-  promotion: internal.sync.syncPromotion.syncPromotion,
-  analytics: internal.sync.syncAnalytics.syncAnalytics,
-  content: internal.sync.syncContent.syncContent,
-  feedbacks: internal.sync.syncFeedbacks.syncFeedbacks,
-  prices: internal.sync.syncPrices.syncPrices,
-  returns: internal.sync.syncReturns.syncReturns,
-  tariffs: internal.sync.syncTariffs.syncTariffs,
-};
+// Список категорий для синка по порядку, с задержками (в мс) между ними.
+// WB глобальный лимит: все API одного продавца считаются вместе.
+// Statistics: 1 req/min. Остальные: ~3-5 req/min.
+const SYNC_STEPS: Array<{ key: string; ref: any; delayMs: number }> = [
+  { key: "statistics_orders",     ref: internal.sync.syncStatistics.syncOrders,     delayMs: 0 },
+  { key: "statistics_sales",      ref: internal.sync.syncStatistics.syncSales,      delayMs: 65_000 },
+  { key: "statistics_stocks",     ref: internal.sync.syncStatistics.syncStocks,     delayMs: 130_000 },
+  { key: "statistics_financials", ref: internal.sync.syncStatistics.syncFinancials, delayMs: 195_000 },
+  { key: "promotion",            ref: internal.sync.syncPromotion.syncPromotion,   delayMs: 300_000 },
+  { key: "analytics",            ref: internal.sync.syncAnalytics.syncAnalytics,   delayMs: 360_000 },
+  { key: "content",              ref: internal.sync.syncContent.syncContent,        delayMs: 420_000 },
+  { key: "feedbacks",            ref: internal.sync.syncFeedbacks.syncFeedbacks,    delayMs: 450_000 },
+  { key: "prices",               ref: internal.sync.syncPrices.syncPrices,          delayMs: 480_000 },
+  { key: "returns",              ref: internal.sync.syncReturns.syncReturns,        delayMs: 510_000 },
+  { key: "tariffs",              ref: internal.sync.syncTariffs.syncTariffs,         delayMs: 540_000 },
+];
 
-// Ручной триггер: запускает категории по очереди с паузами для rate limit
+// Ручной триггер: планирует каждую категорию через scheduler с задержками
+// Не блокирует — возвращается сразу, синки идут в фоне
 export const triggerSync = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
@@ -26,26 +30,19 @@ export const triggerSync = action({
 
     const enabled = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
 
-    const steps: string[] = [];
-    if (enabled.includes("statistics")) {
-      steps.push("statistics_orders", "statistics_sales", "statistics_stocks", "statistics_financials");
-    }
-    for (const cat of enabled) {
-      if (cat !== "statistics" && CATEGORY_ACTIONS[cat]) {
-        steps.push(cat);
-      }
+    for (const step of SYNC_STEPS) {
+      // Определяем, включена ли категория
+      const category = step.key.startsWith("statistics_") ? "statistics" : step.key;
+      if (!enabled.includes(category)) continue;
+
+      await ctx.scheduler.runAfter(step.delayMs, step.ref, {
+        shopId,
+        apiKey: shop.apiKey,
+      });
     }
 
-    for (let i = 0; i < steps.length; i++) {
-      // Пауза 65с между запросами к WB (глобальный лимит + statistics: 1 req/min)
-      if (i > 0) await new Promise((r) => setTimeout(r, 65000));
-      const actionRef = CATEGORY_ACTIONS[steps[i]];
-      if (actionRef) {
-        await ctx.runAction(actionRef, { shopId, apiKey: shop.apiKey });
-      }
-    }
-
-    await ctx.runMutation(internal.shops.updateLastSync, { id: shopId });
+    // Обновить lastSyncAt после последней запланированной задачи
+    await ctx.scheduler.runAfter(600_000, internal.shops.updateLastSync, { id: shopId });
   },
 });
 
