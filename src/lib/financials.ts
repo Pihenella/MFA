@@ -188,6 +188,8 @@ export function groupByReportFull(
     penalties: number;
     surcharges: number;
     deductions: number;
+    adDeductions: number;
+    otherDeductions: number;
     nmIds: Set<number>;
     salesByNm: Map<number, number>;
     returnsByNm: Map<number, number>;
@@ -213,6 +215,8 @@ export function groupByReportFull(
         penalties: 0,
         surcharges: 0,
         deductions: 0,
+        adDeductions: 0,
+        otherDeductions: 0,
         nmIds: new Set(),
         salesByNm: new Map(),
         returnsByNm: new Map(),
@@ -221,7 +225,6 @@ export function groupByReportFull(
     const s = map.get(r.realizationreportId)!;
     s.nmIds.add(r.nmId);
 
-    // Фильтруем фейковые записи (Возмещения ПВЗ с nmId=0)
     const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || r.nmId > 0);
     const isReturn = r.docTypeName === "Возврат" && r.nmId > 0;
 
@@ -243,7 +246,12 @@ export function groupByReportFull(
     s.acceptance += r.acceptance ?? 0;
     s.penalties += r.penalty;
     s.surcharges += r.additionalPayment;
-    s.deductions += r.deductionAmount || 0;
+    const ded = r.deductionAmount || 0;
+    if (ded > 0 && r.nmId === 0 && ded >= 10000) {
+      s.adDeductions += ded;
+    } else {
+      s.otherDeductions += ded;
+    }
   }
 
   const reportCount = map.size;
@@ -258,7 +266,6 @@ export function groupByReportFull(
     const buyoutsQty = s.salesQty - s.returnsQty;
     const returnsPct = buyoutsQty > 0 ? (s.returnsQty / buyoutsQty) * 100 : 0;
 
-    // Cost: sum cost * net qty per nmId
     let costTotal = 0;
     for (const nmId of s.nmIds) {
       const unitCost = costMap.get(nmId) ?? 0;
@@ -267,14 +274,11 @@ export function groupByReportFull(
       costTotal += unitCost * (sold - returned);
     }
 
-    // Комиссия = revenueSeller - forPayTotal (как в МП Факт)
     const commission = revenueSeller - forPayTotal;
-    // Валовая прибыль = revenueSeller - себестоимость (как в МП Факт)
     const grossProfit = revenueSeller - costTotal;
-    const otherDeductions = Math.max(0, Math.abs(s.deductions) - adsPerReport);
-    // Расходы МП = комиссия + логистика + хранение + приёмка + штрафы + реклама + удержания - компенсации (как в МП Факт)
-    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsPerReport + otherDeductions - s.surcharges;
-    // Прибыль до налога = валовая прибыль - расходы МП
+    // Реклама: максимум из campaigns API (пропорционально) и рекламных удержаний
+    const adsForReport = Math.max(adsPerReport, s.adDeductions);
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsForReport + Math.abs(s.otherDeductions) - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses;
     // Налог = 6% от выручки со скидкой WB
     const tax = revenueWbDisc * 0.06;
@@ -319,11 +323,11 @@ export function groupByReportFull(
       storagePct: pct(-Math.abs(s.storage), revenueSeller),
       paidAcceptance: -Math.abs(s.acceptance),
       paidAcceptancePct: pct(-Math.abs(s.acceptance), revenueSeller),
-      advertising: -adsPerReport,
+      advertising: -adsForReport,
       loanPayment: null,
-      advertisingPct: pct(-adsPerReport, revenueSeller),
-      otherDeductions: -otherDeductions,
-      otherDeductionsPct: pct(-otherDeductions, revenueSeller),
+      advertisingPct: pct(-adsForReport, revenueSeller),
+      otherDeductions: -Math.abs(s.otherDeductions),
+      otherDeductionsPct: pct(-Math.abs(s.otherDeductions), revenueSeller),
       otherCharges: null,
       otherChargesPct: null,
       mpExpenses: -mpExpenses,
@@ -423,6 +427,8 @@ export function groupByPeriodFull(
     penalties: number;
     surcharges: number;
     deductions: number;
+    adDeductions: number;
+    otherDeductions: number;
     nmIds: Set<number>;
     salesByNm: Map<number, number>;
     returnsByNm: Map<number, number>;
@@ -448,6 +454,8 @@ export function groupByPeriodFull(
         penalties: 0,
         surcharges: 0,
         deductions: 0,
+        adDeductions: 0,
+        otherDeductions: 0,
         nmIds: new Set(),
         salesByNm: new Map(),
         returnsByNm: new Map(),
@@ -478,7 +486,12 @@ export function groupByPeriodFull(
     s.acceptance += r.acceptance ?? 0;
     s.penalties += r.penalty;
     s.surcharges += r.additionalPayment;
-    s.deductions += r.deductionAmount || 0;
+    const ded = r.deductionAmount || 0;
+    if (ded > 0 && r.nmId === 0 && ded >= 10000) {
+      s.adDeductions = (s.adDeductions ?? 0) + ded;
+    } else {
+      s.otherDeductions = (s.otherDeductions ?? 0) + ded;
+    }
   }
 
   const periodCount = map.size;
@@ -503,8 +516,10 @@ export function groupByPeriodFull(
 
     const commission = revenueSeller - forPayTotal;
     const grossProfit = revenueSeller - costTotal;
-    const otherDeductions = Math.max(0, Math.abs(s.deductions) - adsPerPeriod);
-    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsPerPeriod + otherDeductions - s.surcharges;
+    const adDed = s.adDeductions;
+    const othDed = s.otherDeductions;
+    const adsForPeriod = Math.max(adsPerPeriod, adDed);
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsForPeriod + Math.abs(othDed) - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses;
     const tax = revenueWbDisc * 0.06;
     const profit = profitBeforeTax - tax;
@@ -549,10 +564,10 @@ export function groupByPeriodFull(
       storagePct: pct(-Math.abs(s.storage), revenueSeller),
       paidAcceptance: -Math.abs(s.acceptance),
       paidAcceptancePct: pct(-Math.abs(s.acceptance), revenueSeller),
-      advertising: -adsPerPeriod,
-      advertisingPct: pct(-adsPerPeriod, revenueSeller),
-      otherDeductions: -otherDeductions,
-      otherDeductionsPct: pct(-Math.abs(s.deductions), revenueSeller),
+      advertising: -adsForPeriod,
+      advertisingPct: pct(-adsForPeriod, revenueSeller),
+      otherDeductions: -Math.abs(othDed),
+      otherDeductionsPct: pct(-Math.abs(othDed), revenueSeller),
       otherCharges: null,
       otherChargesPct: null,
       mpExpenses: -mpExpenses,

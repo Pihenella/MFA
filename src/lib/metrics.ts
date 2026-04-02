@@ -231,19 +231,26 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Штрафы
   const penalties = financials.reduce((s, f) => s + (f.penalty || 0), 0);
 
-  // Удержания
-  const deductions = financials.reduce((s, f) => s + (f.deductionAmount || 0), 0);
+  // Удержания: разделяем на рекламные (крупные, nmId=0) и прочие
+  // WB включает рекламные списания как "Удержание" в отчёте реализации
+  let adDeductions = 0;
+  let otherDeductions = 0;
+  for (const f of financials) {
+    const d = f.deductionAmount || 0;
+    if (d === 0) continue;
+    if (f.nmId === 0 && d >= 10000) {
+      adDeductions += d;
+    } else {
+      otherDeductions += d;
+    }
+  }
 
   // Компенсации (доплаты)
   const compensation = financials.reduce((s, f) => s + (f.additionalPayment || 0), 0);
 
-  // Реклама
-  const ads = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
-
-  // Удержания из отчёта реализации включают рекламу — разделяем:
-  // крупные удержания (>= 10000 с nmId=0) = рекламные удержания WB
-  // остальные = прочие удержания
-  const otherDeductions = Math.max(0, deductions - ads);
+  // Реклама: берём максимум из campaigns API и рекламных удержаний
+  const campaignsSpent = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
+  const ads = Math.max(campaignsSpent, adDeductions);
 
   const commissionPercent = pct(commission);
   const logisticsPercent = pct(logistics);
