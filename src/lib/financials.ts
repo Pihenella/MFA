@@ -267,8 +267,10 @@ export function groupByReportFull(
     const commission = revenueSeller - forPayTotal;
     // Валовая прибыль = revenueSeller - себестоимость (как в МП Факт)
     const grossProfit = revenueSeller - costTotal;
-    // Расходы МП = комиссия + логистика + хранение + приёмка + штрафы + удержания - компенсации
-    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + Math.abs(s.deductions) - s.surcharges;
+    // Реклама: удержания из отчёта реализации включают рекламу — вычитаем чтобы не считать дважды
+    const otherDeductions = Math.max(0, Math.abs(s.deductions) - adsPerReport);
+    // Расходы МП = комиссия + логистика + хранение + приёмка + штрафы + удержания (без рекламы) - компенсации
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + otherDeductions - s.surcharges;
     // Прибыль до налога = валовая прибыль - расходы МП - реклама
     const profitBeforeTax = grossProfit - mpExpenses - adsPerReport;
     // Налог = 6% от выручки со скидкой WB
@@ -317,8 +319,8 @@ export function groupByReportFull(
       advertising: -adsPerReport,
       loanPayment: null,
       advertisingPct: pct(-adsPerReport, revenueSeller),
-      otherDeductions: -Math.abs(s.deductions),
-      otherDeductionsPct: pct(-Math.abs(s.deductions), revenueSeller),
+      otherDeductions: -otherDeductions,
+      otherDeductionsPct: pct(-otherDeductions, revenueSeller),
       otherCharges: null,
       otherChargesPct: null,
       mpExpenses: -mpExpenses,
@@ -497,7 +499,8 @@ export function groupByPeriodFull(
     const commission = revenueSeller - forPayTotal;
     // Валовая прибыль = revenueSeller - себестоимость
     const grossProfit = revenueSeller - costTotal;
-    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + Math.abs(s.deductions) - s.surcharges;
+    const otherDeductions = Math.max(0, Math.abs(s.deductions) - adsPerPeriod);
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + otherDeductions - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses - adsPerPeriod;
     const tax = revenueWbDisc * 0.06;
     const profit = profitBeforeTax - tax;
@@ -544,7 +547,7 @@ export function groupByPeriodFull(
       paidAcceptancePct: pct(-Math.abs(s.acceptance), revenueSeller),
       advertising: -adsPerPeriod,
       advertisingPct: pct(-adsPerPeriod, revenueSeller),
-      otherDeductions: -Math.abs(s.deductions),
+      otherDeductions: -otherDeductions,
       otherDeductionsPct: pct(-Math.abs(s.deductions), revenueSeller),
       otherCharges: null,
       otherChargesPct: null,

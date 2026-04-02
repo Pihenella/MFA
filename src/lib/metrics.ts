@@ -233,17 +233,20 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Реклама
   const ads = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
 
+  // Удержания из отчёта реализации включают рекламу — вычитаем чтобы не считать дважды
+  const otherDeductions = Math.max(0, deductions - ads);
+
   const commissionPercent = pct(commission);
   const logisticsPercent = pct(logistics);
   const storagePercent = pct(storage);
   const acceptancePercent = pct(acceptance);
   const adsPercent = pct(ads);
   const penaltiesPercent = pct(penalties);
-  const deductionsPercent = pct(deductions);
+  const deductionsPercent = pct(otherDeductions);
   const compensationPercent = pct(compensation);
 
   // Итого расходы МП (как в МП Факт — без рекламы, она отдельно)
-  const mpExpenses = commission + logistics + storage + acceptance + penalties + deductions - compensation;
+  const mpExpenses = commission + logistics + storage + acceptance + penalties + otherDeductions - compensation;
   const mpExpensesPercent = pct(mpExpenses);
 
   // ── Прибыль до налога = Валовая прибыль - Расходы МП - Реклама ──
@@ -272,7 +275,7 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
     commission, commissionPercent, logistics, logisticsPercent,
     storage, storagePercent, acceptance, acceptancePercent,
     ads, adsPercent, penalties, penaltiesPercent,
-    deductions, deductionsPercent, compensation, compensationPercent,
+    deductions: otherDeductions, deductionsPercent, compensation, compensationPercent,
     mpExpenses, mpExpensesPercent,
     profitBeforeTax, profitBeforeTaxPercent, tax, taxPercent,
     profit, profitPercent, roi,

@@ -76,7 +76,14 @@ export const debugWbFields = action({
     if (!res.ok) return { error: res.status, text: await res.text() };
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) return { error: "empty" };
-    return data.slice(0, 3);
+    // Вернуть по одной записи каждого типа операции
+    const seen = new Set<string>();
+    const samples: unknown[] = [];
+    for (const row of data) {
+      const op = row.supplier_oper_name ?? "";
+      if (!seen.has(op)) { seen.add(op); samples.push(row); }
+    }
+    return samples;
   },
 });
 
