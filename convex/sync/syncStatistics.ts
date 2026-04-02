@@ -22,7 +22,7 @@ export const upsertOrders = internalMutation({
         date: o.date?.slice(0, 10) ?? "",
         nmId: Number(o.nmId) || 0,
         supplierArticle: String(o.supplierArticle ?? ""),
-        quantity: Number(o.quantity) || 0,
+        quantity: Number(o.quantity) || 1,
         totalPrice,
         priceWithDisc,
         discountPercent,
@@ -53,7 +53,7 @@ export const upsertSales = internalMutation({
         date: s.date?.slice(0, 10) ?? "",
         nmId: Number(s.nmId) || 0,
         supplierArticle: String(s.supplierArticle ?? ""),
-        quantity: Number(s.quantity) || 0,
+        quantity: Number(s.quantity) || 1,
         priceWithDisc: Number(s.priceWithDisc) || 0,
         forPay: Number(s.forPay) || 0,
         finishedPrice: Number(s.finishedPrice) || 0,
@@ -91,7 +91,7 @@ export const insertStocks = internalMutation({
         nmId: Number(s.nmId) || 0,
         supplierArticle: String(s.supplierArticle ?? ""),
         subject: String(s.subject ?? ""),
-        quantity: Number(s.quantity) || 0,
+        quantity: Number(s.quantity) || 1,
         updatedAt: Date.now(),
       });
     }
@@ -153,10 +153,10 @@ export const syncOrders = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
-    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     try {
       const res = await fetchWithRetry(
-        `https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=${fiveDaysAgo}T00:00:00`,
+        `https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=${ninetyDaysAgo}T00:00:00`,
         { headers },
       );
       await assertOk(res);
@@ -180,10 +180,10 @@ export const syncSales = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
-    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+    const ninetyDaysAgo2 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     try {
       const res = await fetchWithRetry(
-        `https://statistics-api.wildberries.ru/api/v1/supplier/sales?dateFrom=${fiveDaysAgo}T00:00:00`,
+        `https://statistics-api.wildberries.ru/api/v1/supplier/sales?dateFrom=${ninetyDaysAgo2}T00:00:00`,
         { headers },
       );
       await assertOk(res);
@@ -207,10 +207,10 @@ export const syncStocks = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
-    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+    const oneDayAgo = new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10);
     try {
       const res = await fetchWithRetry(
-        `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=${fiveDaysAgo}T00:00:00`,
+        `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=${oneDayAgo}T00:00:00`,
         { headers },
       );
       await assertOk(res);

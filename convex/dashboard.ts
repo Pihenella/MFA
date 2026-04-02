@@ -153,22 +153,13 @@ export const getNmReports = query({
     dateFrom: v.optional(v.string()),
     dateTo: v.optional(v.string()),
   },
-  handler: async (ctx, { shopId, dateFrom, dateTo }) => {
-    const filterByDate = (items: any[]) => {
-      if (!dateFrom || !dateTo) return items;
-      return items.filter((i) => {
-        const ps = i.periodStart ?? "";
-        const pe = i.periodEnd ?? "";
-        // Exact match: запись полностью внутри выбранного периода
-        return ps === dateFrom && pe === dateTo;
-      });
-    };
+  handler: async (ctx, { shopId }) => {
+    // NM Reports хранятся агрегированно за период синка — возвращаем все для магазина
     if (shopId) {
-      const results = await ctx.db
+      return await ctx.db
         .query("nmReports")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
-      return filterByDate(results);
     }
     const shops = await ctx.db.query("shops").collect();
     const results = await Promise.all(
@@ -179,7 +170,7 @@ export const getNmReports = query({
           .collect()
       )
     );
-    return filterByDate(results.flat());
+    return results.flat();
   },
 });
 

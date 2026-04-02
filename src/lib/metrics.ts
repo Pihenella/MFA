@@ -80,6 +80,7 @@ export type DashboardMetrics = {
   salesWbDisc: number;
   returnsWbDisc: number;
   revenueWbDisc: number;
+  wbDiscountPct: number;
   forPaySales: number;
   forPayReturns: number;
   forPayTotal: number;
@@ -88,11 +89,13 @@ export type DashboardMetrics = {
   returnsCount: number;
   returnRate: number;
   buyoutsCount: number;
+  buyoutRate: number;
   // Себестоимость и валовая прибыль
   cogs: number;
   cogsPercent: number;
   grossProfit: number;
   grossProfitPercent: number;
+  avgCost: number;
   // Расходы на МП
   commission: number;
   commissionPercent: number;
@@ -120,6 +123,9 @@ export type DashboardMetrics = {
   profit: number;
   profitPercent: number;
   roi: number;
+  payoutToAccount: number;
+  salesNoCost: number;
+  returnsNoCost: number;
 };
 
 const TAX_RATE = 0.06; // УСН 6%
@@ -267,20 +273,33 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // ── ROI = прибыль / себестоимость (как в МП Факт) ──
   const roi = cogs > 0 ? (profit / cogs) * 100 : 0;
 
+  // ── Дополнительные метрики (как в МП Факт) ──
+  const wbDiscountPct = salesSeller > 0 ? ((salesSeller - salesWbDisc) / salesSeller) * 100 : 0;
+  const buyoutRate = ordersCount > 0 ? (buyoutsCount / ordersCount) * 100 : 0;
+  const avgCost = buyoutsCount > 0 ? cogs / buyoutsCount : 0;
+  const payoutToAccount = forPayTotal;
+
+  // Продажи/возвраты без себестоимости
+  const nmIdsWithCost = new Set(costs.filter((c) => c.cost > 0).map((c) => c.nmId));
+  const salesNoCost = salesFin.filter((f) => !nmIdsWithCost.has(f.nmId)).reduce((s, f) => s + (f.retailPrice ?? f.retailAmount ?? 0), 0);
+  const returnsNoCost = returnsFin.filter((f) => !nmIdsWithCost.has(f.nmId)).reduce((s, f) => s + Math.abs(f.retailPrice ?? f.retailAmount ?? 0), 0);
+
   return {
     openCardCount, addToCartCount, crToCart, crToOrder,
     ordersRevenue, ordersCount, avgOrderValue, cancelledRevenue, cancelledCount, cancelRate,
     salesSeller, returnsSeller, revenueSeller,
     salesWbDisc, returnsWbDisc, revenueWbDisc,
+    wbDiscountPct,
     forPaySales, forPayReturns, forPayTotal,
-    avgCheck, salesCount, returnsCount, returnRate, buyoutsCount,
-    cogs, cogsPercent, grossProfit, grossProfitPercent,
+    avgCheck, salesCount, returnsCount, returnRate, buyoutsCount, buyoutRate,
+    cogs, cogsPercent, grossProfit, grossProfitPercent, avgCost,
     commission, commissionPercent, logistics, logisticsPercent,
     storage, storagePercent, acceptance, acceptancePercent,
     ads, adsPercent, penalties, penaltiesPercent,
     deductions: otherDeductions, deductionsPercent, compensation, compensationPercent,
     mpExpenses, mpExpensesPercent,
     profitBeforeTax, profitBeforeTaxPercent, tax, taxPercent,
-    profit, profitPercent, roi,
+    profit, profitPercent, roi, payoutToAccount,
+    salesNoCost, returnsNoCost,
   };
 }
