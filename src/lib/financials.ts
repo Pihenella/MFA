@@ -5,8 +5,10 @@ type FinancialRow = {
   supplierArticle: string;
   nmId: number;
   retailAmount: number;
+  retailPrice?: number;
   returnAmount: number;
   deliveryAmount: number;
+  deliveryRub?: number;
   stornoDeliveryAmount: number;
   deductionAmount: number;
   ppvzForPay: number;
@@ -16,6 +18,7 @@ type FinancialRow = {
   additionalPayment: number;
   storageAmount: number;
   docTypeName: string;
+  supplierOperName?: string;
   warehouseName: string;
   siteCountry: string;
 };
@@ -59,7 +62,7 @@ export function groupByReport(rows: FinancialRow[]): ReportSummary[] {
       s.returnsCount += 1;
     }
     s.forPay += r.ppvzForPay;
-    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
+    s.logistics += r.deliveryRub ?? (r.deliveryAmount - (r.stornoDeliveryAmount || 0));
     s.storage += r.storageAmount;
     s.penalty += r.penalty;
     s.deductions += r.deductionAmount || 0;
@@ -101,7 +104,7 @@ export function groupByWeek(rows: FinancialRow[]) {
     if (r.docTypeName === "Продажа") { s.salesRevenue += r.retailAmount; s.salesCount += 1; }
     if (r.docTypeName === "Возврат") { s.returnsRevenue += r.retailAmount; s.returnsCount += 1; }
     s.forPay += r.ppvzForPay;
-    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
+    s.logistics += r.deliveryRub ?? (r.deliveryAmount - (r.stornoDeliveryAmount || 0));
     s.deductions += r.deductionAmount || 0;
   }
   return Array.from(map.values())
@@ -219,19 +222,19 @@ export function groupByReportFull(
     s.nmIds.add(r.nmId);
 
     if (r.docTypeName === "Продажа") {
-      s.salesSeller += r.retailAmount;
+      s.salesSeller += r.retailPrice ?? r.retailAmount;
       s.forPaySales += r.ppvzForPay;
-      s.salesWbDisc += r.ppvzSalesTotal ?? r.retailAmount ?? 0;
+      s.salesWbDisc += r.retailAmount;
       s.salesQty += 1;
       s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
     } else if (r.docTypeName === "Возврат") {
-      s.returnsSeller += Math.abs(r.retailAmount);
+      s.returnsSeller += Math.abs(r.retailPrice ?? r.retailAmount);
       s.forPayReturns += Math.abs(r.ppvzForPay);
-      s.returnsWbDisc += Math.abs(r.ppvzSalesTotal ?? r.retailAmount ?? 0);
+      s.returnsWbDisc += Math.abs(r.retailAmount);
       s.returnsQty += 1;
       s.returnsByNm.set(r.nmId, (s.returnsByNm.get(r.nmId) ?? 0) + 1);
     }
-    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
+    s.logistics += r.deliveryRub ?? 0;
     s.storage += r.storageAmount;
     s.acceptance += r.acceptance ?? 0;
     s.penalties += r.penalty;
@@ -450,19 +453,19 @@ export function groupByPeriodFull(
     s.nmIds.add(r.nmId);
 
     if (r.docTypeName === "Продажа") {
-      s.salesSeller += r.retailAmount;
+      s.salesSeller += r.retailPrice ?? r.retailAmount;
       s.forPaySales += r.ppvzForPay;
-      s.salesWbDisc += r.ppvzSalesTotal ?? r.retailAmount ?? 0;
+      s.salesWbDisc += r.retailAmount;
       s.salesQty += 1;
       s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
     } else if (r.docTypeName === "Возврат") {
-      s.returnsSeller += Math.abs(r.retailAmount);
+      s.returnsSeller += Math.abs(r.retailPrice ?? r.retailAmount);
       s.forPayReturns += Math.abs(r.ppvzForPay);
-      s.returnsWbDisc += Math.abs(r.ppvzSalesTotal ?? r.retailAmount ?? 0);
+      s.returnsWbDisc += Math.abs(r.retailAmount);
       s.returnsQty += 1;
       s.returnsByNm.set(r.nmId, (s.returnsByNm.get(r.nmId) ?? 0) + 1);
     }
-    s.logistics += r.deliveryAmount - (r.stornoDeliveryAmount || 0);
+    s.logistics += r.deliveryRub ?? 0;
     s.storage += r.storageAmount;
     s.acceptance += r.acceptance ?? 0;
     s.penalties += r.penalty;

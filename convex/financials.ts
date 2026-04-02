@@ -27,7 +27,7 @@ export const clearByShop = mutation({
     const rows = await ctx.db
       .query("financials")
       .withIndex("by_shop", (q) => q.eq("shopId", shopId))
-      .collect();
+      .take(500);
     for (const r of rows) {
       await ctx.db.delete(r._id);
     }

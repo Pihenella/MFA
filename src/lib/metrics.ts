@@ -18,6 +18,7 @@ export type Order = {
 
 export type Financial = {
   deliveryAmount: number;
+  deliveryRub?: number;
   stornoDeliveryAmount: number;
   storageAmount: number;
   penalty: number;
@@ -27,6 +28,7 @@ export type Financial = {
   ppvzSalesTotal?: number;
   acceptance?: number;
   retailAmount: number;
+  retailPrice?: number;
   returnAmount?: number;
   docTypeName: string;
   nmId: number;
@@ -153,14 +155,14 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   const salesFin = financials.filter((f) => f.docTypeName === "Продажа");
   const returnsFin = financials.filter((f) => f.docTypeName === "Возврат");
 
-  // ── Продажи и возвраты (цена продавца = retailAmount) ──
-  const salesSeller = salesFin.reduce((s, f) => s + (f.retailAmount || 0), 0);
-  const returnsSeller = returnsFin.reduce((s, f) => s + Math.abs(f.retailAmount || 0), 0);
+  // ── Продажи и возвраты (цена продавца = retailPrice, со скидкой WB = retailAmount) ──
+  const salesSeller = salesFin.reduce((s, f) => s + (f.retailPrice ?? f.retailAmount ?? 0), 0);
+  const returnsSeller = returnsFin.reduce((s, f) => s + Math.abs(f.retailPrice ?? f.retailAmount ?? 0), 0);
   const revenueSeller = salesSeller - returnsSeller;
 
-  // ── Продажи со скидкой WB (ppvzSalesTotal) ──
-  const salesWbDisc = salesFin.reduce((s, f) => s + (f.ppvzSalesTotal ?? f.retailAmount ?? 0), 0);
-  const returnsWbDisc = returnsFin.reduce((s, f) => s + Math.abs(f.ppvzSalesTotal ?? f.retailAmount ?? 0), 0);
+  // ── Продажи со скидкой WB (retailAmount = цена после SPP скидки) ──
+  const salesWbDisc = salesFin.reduce((s, f) => s + (f.retailAmount ?? 0), 0);
+  const returnsWbDisc = returnsFin.reduce((s, f) => s + Math.abs(f.retailAmount ?? 0), 0);
   const revenueWbDisc = salesWbDisc - returnsWbDisc;
 
   // ── К перечислению (ppvzForPay) ──
@@ -207,9 +209,9 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Комиссия = Выручка(цена продавца) - К перечислению (чистая разница, как в МП Факт)
   const commission = revenueSeller - forPayTotal;
 
-  // Логистика
+  // Логистика (deliveryRub = стоимость в руб, deliveryAmount = кол-во)
   const logistics = financials.reduce(
-    (s, f) => s + (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0),
+    (s, f) => s + (f.deliveryRub ?? 0),
     0,
   );
 

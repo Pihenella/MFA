@@ -4,6 +4,7 @@ import { chunk } from "../../convex/sync/helpers";
 
 const makeFinancial = (overrides = {}) => ({
   deliveryAmount: 0,
+  deliveryRub: undefined as number | undefined,
   stornoDeliveryAmount: 0,
   storageAmount: 0,
   penalty: 0,
@@ -13,6 +14,7 @@ const makeFinancial = (overrides = {}) => ({
   ppvzSalesTotal: undefined as number | undefined,
   acceptance: undefined as number | undefined,
   retailAmount: 0,
+  retailPrice: undefined as number | undefined,
   returnAmount: 0,
   docTypeName: "Продажа",
   nmId: 1,
@@ -87,10 +89,10 @@ describe("computeDashboardMetrics — financials-based (МП Факт форму
     expect(result.grossProfit).toBe(8000);
   });
 
-  it("computes net logistics as deliveryAmount minus stornoDeliveryAmount", () => {
+  it("computes net logistics from deliveryRub", () => {
     const financials = [
-      makeFinancial({ deliveryAmount: 500, stornoDeliveryAmount: 100 }),
-      makeFinancial({ deliveryAmount: 300, stornoDeliveryAmount: 50 }),
+      makeFinancial({ deliveryRub: 500 }),
+      makeFinancial({ deliveryRub: 150 }),
     ];
     const result = computeDashboardMetrics({ ...emptyInput, financials });
     expect(result.logistics).toBe(650);
@@ -107,11 +109,10 @@ describe("computeDashboardMetrics — financials-based (МП Факт форму
 
   it("computes full profit chain correctly (МП Факт style)", () => {
     const financials = [makeFinancial({
-      retailAmount: 10000,
+      retailAmount: 9000,
+      retailPrice: 10000,
       ppvzForPay: 7000,
-      ppvzSalesTotal: 9000,
-      deliveryAmount: 500,
-      stornoDeliveryAmount: 50,
+      deliveryRub: 450,
       storageAmount: 100,
       acceptance: 10,
       penalty: 30,
@@ -133,7 +134,7 @@ describe("computeDashboardMetrics — financials-based (МП Факт форму
     // commission = revenueSeller - forPayTotal = 10000 - 7000 = 3000
     expect(result.commission).toBe(3000);
 
-    // logistics = 500 - 50 = 450
+    // logistics = 450
     expect(result.logistics).toBe(450);
 
     // mpExpenses = commission(3000) + logistics(450) + storage(100) + acceptance(10) + penalties(30) + deductions(20) - compensation(5) = 3605

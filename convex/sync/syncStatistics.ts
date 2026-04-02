@@ -113,8 +113,10 @@ export const upsertFinancials = internalMutation({
         nmId: Number(r.nm_id) || 0,
         subject: String(r.subject_name ?? ""),
         retailAmount: Number(r.retail_amount) || 0,
+        retailPrice: r.retail_price_withdisc_rub != null ? Number(r.retail_price_withdisc_rub) : undefined,
         returnAmount: Number(r.return_amount) || 0,
         deliveryAmount: Number(r.delivery_amount) || 0,
+        deliveryRub: r.delivery_rub != null ? Number(r.delivery_rub) : undefined,
         stornoDeliveryAmount: Number(r.storno_delivery_amount) || 0,
         ppvzForPay: Number(r.ppvz_for_pay) || 0,
         ppvzSalesTotal: r.ppvz_sales_total != null ? Number(r.ppvz_sales_total) : undefined,
@@ -127,6 +129,7 @@ export const upsertFinancials = internalMutation({
         warehouseName: String(r.office_name ?? ""),
         realizationreportDate: r.create_dt?.slice(0, 10) ?? "",
         docTypeName: String(r.doc_type_name ?? ""),
+        supplierOperName: r.supplier_oper_name != null ? String(r.supplier_oper_name) : undefined,
       };
       const existing = await ctx.db
         .query("financials")

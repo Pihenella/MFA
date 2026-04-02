@@ -49,6 +49,37 @@ export const triggerSync = action({
   },
 });
 
+// Ресинк только финансов (для ручного вызова после очистки данных)
+export const resyncFinancials = action({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
+    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shop = shops.find((s) => s._id === shopId);
+    if (!shop) throw new Error("Shop not found");
+    await ctx.runAction(internal.sync.syncStatistics.syncFinancials, { shopId, apiKey: shop.apiKey });
+  },
+});
+
+// Debug: получить сырые поля из WB API (временный)
+export const debugWbFields = action({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }): Promise<unknown> => {
+    const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(internal.shops.listInternal);
+    const shop = shops.find((s: { _id: string }) => s._id === shopId);
+    if (!shop) throw new Error("Shop not found");
+    const today = new Date().toISOString().slice(0, 10);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const res: Response = await fetch(
+      `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${thirtyDaysAgo}&dateTo=${today}&limit=5&rrdid=0`,
+      { headers: { Authorization: shop.apiKey } },
+    );
+    if (!res.ok) return { error: res.status, text: await res.text() };
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return { error: "empty" };
+    return data.slice(0, 3);
+  },
+});
+
 // Запрос аналитики для конкретного периода (вызывается с фронтенда при смене дат)
 export const fetchAnalytics = action({
   args: {

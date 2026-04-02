@@ -94,8 +94,8 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
     const salesFin = nmFin.filter((f) => f.docTypeName === "Продажа");
     const returnsFin = nmFin.filter((f) => f.docTypeName === "Возврат");
 
-    const salesRevenue = salesFin.reduce((s, f) => s + (f.retailAmount || 0), 0);
-    const returnsRevenue = returnsFin.reduce((s, f) => s + Math.abs(f.retailAmount || 0), 0);
+    const salesRevenue = salesFin.reduce((s, f) => s + (f.retailPrice ?? f.retailAmount ?? 0), 0);
+    const returnsRevenue = returnsFin.reduce((s, f) => s + Math.abs(f.retailPrice ?? f.retailAmount ?? 0), 0);
     const revenue = salesRevenue - returnsRevenue;
     const salesCount = salesFin.length;
     const returnsCount = returnsFin.length;
@@ -116,7 +116,7 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
     const commission = revenue - forPayTotal;
 
     const logistics = nmFin.reduce(
-      (s, f) => s + (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0),
+      (s, f) => s + (f.deliveryRub ?? 0),
       0,
     );
     const storage = nmFin.reduce((s, f) => s + (f.storageAmount || 0), 0);

@@ -66,18 +66,18 @@ export function aggregateByDay(input: AggregationInput): DailyDataPoint[] {
     const d = getDay(date);
 
     if (f.docTypeName === "Продажа") {
-      d.salesSeller += f.retailAmount || 0;
+      d.salesSeller += f.retailPrice ?? f.retailAmount ?? 0;
       d.forPayTotal += f.ppvzForPay || 0;
       d.salesCount += 1;
       d.salesByNm.set(f.nmId, (d.salesByNm.get(f.nmId) ?? 0) + 1);
     } else if (f.docTypeName === "Возврат") {
-      d.returnsSeller += Math.abs(f.retailAmount || 0);
+      d.returnsSeller += Math.abs(f.retailPrice ?? f.retailAmount ?? 0);
       d.forPayTotal -= Math.abs(f.ppvzForPay || 0);
       d.returnsCount += 1;
       d.returnsByNm.set(f.nmId, (d.returnsByNm.get(f.nmId) ?? 0) + 1);
     }
 
-    d.logistics += (f.deliveryAmount || 0) - (f.stornoDeliveryAmount || 0);
+    d.logistics += f.deliveryRub ?? 0;
     d.storage += f.storageAmount || 0;
     d.penalties += f.penalty || 0;
   }

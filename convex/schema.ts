@@ -62,8 +62,10 @@ export default defineSchema({
     nmId: v.number(),
     subject: v.string(),
     retailAmount: v.number(),
+    retailPrice: v.optional(v.number()),
     returnAmount: v.number(),
     deliveryAmount: v.number(),
+    deliveryRub: v.optional(v.number()),
     stornoDeliveryAmount: v.number(),
     ppvzForPay: v.number(),
     ppvzSalesTotal: v.optional(v.number()),
@@ -76,6 +78,7 @@ export default defineSchema({
     warehouseName: v.string(),
     realizationreportDate: v.string(),
     docTypeName: v.string(),
+    supplierOperName: v.optional(v.string()),
   }).index("by_shop", ["shopId"])
     .index("by_shop_report", ["shopId", "realizationreportId"])
     .index("by_shop_date", ["shopId", "dateFrom"])
