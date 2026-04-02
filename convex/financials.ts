@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const getReports = query({
@@ -18,5 +18,19 @@ export const getReports = query({
     }
     const rows = await ctx.db.query("financials").collect();
     return rows.filter((r) => r.dateFrom >= dateFrom && r.dateFrom <= dateTo);
+  },
+});
+
+export const clearByShop = mutation({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
+    const rows = await ctx.db
+      .query("financials")
+      .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+      .collect();
+    for (const r of rows) {
+      await ctx.db.delete(r._id);
+    }
+    return rows.length;
   },
 });

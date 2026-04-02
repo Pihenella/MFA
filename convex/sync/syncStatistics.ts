@@ -16,7 +16,6 @@ export const upsertOrders = internalMutation({
         .first();
       const totalPrice = Number(o.totalPrice) || 0;
       const discountPercent = Number(o.discountPercent) || 0;
-      // priceWithDisc может приходить из API, либо считаем из totalPrice и скидки
       const priceWithDisc = Number(o.priceWithDisc) || (totalPrice * (1 - discountPercent / 100));
       const row = {
         shopId,
@@ -103,8 +102,10 @@ export const upsertFinancials = internalMutation({
   args: { shopId: v.id("shops"), rows: v.array(v.any()) },
   handler: async (ctx, { shopId, rows }) => {
     for (const r of rows) {
+      const rrdId = Number(r.rrd_id) || 0;
       const row = {
         shopId,
+        rrdId,
         realizationreportId: Number(r.realizationreport_id) || 0,
         dateFrom: r.date_from?.slice(0, 10) ?? "",
         dateTo: r.date_to?.slice(0, 10) ?? "",
@@ -129,15 +130,8 @@ export const upsertFinancials = internalMutation({
       };
       const existing = await ctx.db
         .query("financials")
-        .withIndex("by_shop_report", (q) =>
-          q.eq("shopId", shopId).eq("realizationreportId", row.realizationreportId)
-        )
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("nmId"), row.nmId),
-            q.eq(q.field("docTypeName"), row.docTypeName),
-            q.eq(q.field("supplierArticle"), row.supplierArticle)
-          )
+        .withIndex("by_shop_rrd", (q) =>
+          q.eq("shopId", shopId).eq("rrdId", rrdId)
         )
         .first();
       if (existing) {
@@ -149,17 +143,14 @@ export const upsertFinancials = internalMutation({
   },
 });
 
-// ---- Sync action ----
+// ---- Отдельные actions для каждого эндпоинта ----
+// Statistics API: 1 req/min, burst 1 — каждый action делает ровно 1 запрос
 
-export const syncStatistics = internalAction({
+export const syncOrders = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
-    const today = new Date().toISOString().slice(0, 10);
     const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-
-    // 1. Orders
     try {
       const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=${fiveDaysAgo}T00:00:00`,
@@ -179,8 +170,14 @@ export const syncStatistics = internalAction({
         shopId, endpoint: "orders", status: "error" as const, error: e.message,
       });
     }
+  },
+});
 
-    // 2. Sales
+export const syncSales = internalAction({
+  args: { shopId: v.id("shops"), apiKey: v.string() },
+  handler: async (ctx, { shopId, apiKey }) => {
+    const headers: Record<string, string> = { Authorization: apiKey };
+    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
     try {
       const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/sales?dateFrom=${fiveDaysAgo}T00:00:00`,
@@ -200,8 +197,14 @@ export const syncStatistics = internalAction({
         shopId, endpoint: "sales", status: "error" as const, error: e.message,
       });
     }
+  },
+});
 
-    // 3. Stocks
+export const syncStocks = internalAction({
+  args: { shopId: v.id("shops"), apiKey: v.string() },
+  handler: async (ctx, { shopId, apiKey }) => {
+    const headers: Record<string, string> = { Authorization: apiKey };
+    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
     try {
       const res = await fetchWithRetry(
         `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=${fiveDaysAgo}T00:00:00`,
@@ -222,12 +225,23 @@ export const syncStatistics = internalAction({
         shopId, endpoint: "stocks", status: "error" as const, error: e.message,
       });
     }
+  },
+});
 
-    // 4. Financial reports (paginated)
+export const syncFinancials = internalAction({
+  args: { shopId: v.id("shops"), apiKey: v.string() },
+  handler: async (ctx, { shopId, apiKey }) => {
+    const headers: Record<string, string> = { Authorization: apiKey };
+    const today = new Date().toISOString().slice(0, 10);
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     try {
       let rrdid = 0;
       let totalCount = 0;
+      let pageNum = 0;
       while (true) {
+        // Statistics API: 1 req/min — пауза перед каждой страницей кроме первой
+        if (pageNum > 0) await new Promise((r) => setTimeout(r, 61000));
+        pageNum++;
         const res = await fetchWithRetry(
           `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${ninetyDaysAgo}&dateTo=${today}&limit=1000&rrdid=${rrdid}`,
           { headers },
@@ -251,5 +265,14 @@ export const syncStatistics = internalAction({
         shopId, endpoint: "financials", status: "error" as const, error: e.message,
       });
     }
+  },
+});
+
+// Сохраняем старый syncStatistics для обратной совместимости с sync.ts
+export const syncStatistics = internalAction({
+  args: { shopId: v.id("shops"), apiKey: v.string() },
+  handler: async (_ctx, { shopId: _shopId, apiKey: _apiKey }) => {
+    // Больше не используется — категории вызываются отдельно из кронов
+    // Оставлен чтобы не ломать импорты в sync.ts
   },
 });

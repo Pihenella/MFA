@@ -14,12 +14,15 @@ export const BATCH_SIZE = 50;
 export async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  retries = 3,
+  retries = 5,
 ): Promise<Response> {
   const res = await fetch(url, options);
   if ((res.status === 429 || res.status >= 500) && retries > 0) {
-    // Увеличиваем задержку при каждом ретрае (3s, 6s, 9s...)
-    const delay = (4 - retries) * 3000;
+    // Используем X-Ratelimit-Retry от WB, если есть; иначе экспоненциальный backoff
+    const retryAfter = res.headers.get("X-Ratelimit-Retry");
+    const delay = retryAfter
+      ? Math.ceil(parseFloat(retryAfter)) * 1000
+      : (6 - retries) * 5000; // 5s, 10s, 15s, 20s, 25s
     await new Promise((r) => setTimeout(r, delay));
     return fetchWithRetry(url, options, retries - 1);
   }

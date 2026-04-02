@@ -2,22 +2,54 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
+const CATEGORY_ACTIONS: Record<string, any> = {
+  statistics_orders: internal.sync.syncStatistics.syncOrders,
+  statistics_sales: internal.sync.syncStatistics.syncSales,
+  statistics_stocks: internal.sync.syncStatistics.syncStocks,
+  statistics_financials: internal.sync.syncStatistics.syncFinancials,
+  promotion: internal.sync.syncPromotion.syncPromotion,
+  analytics: internal.sync.syncAnalytics.syncAnalytics,
+  content: internal.sync.syncContent.syncContent,
+  feedbacks: internal.sync.syncFeedbacks.syncFeedbacks,
+  prices: internal.sync.syncPrices.syncPrices,
+  returns: internal.sync.syncReturns.syncReturns,
+  tariffs: internal.sync.syncTariffs.syncTariffs,
+};
+
+// Ручной триггер: запускает категории по очереди с паузами для rate limit
 export const triggerSync = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
     const shops = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
-    await ctx.runAction(internal.sync.syncShop, {
-      shopId,
-      apiKey: shop.apiKey,
-      enabledCategories: shop.enabledCategories ?? undefined,
-    });
+
+    const enabled = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
+
+    const steps: string[] = [];
+    if (enabled.includes("statistics")) {
+      steps.push("statistics_orders", "statistics_sales", "statistics_stocks", "statistics_financials");
+    }
+    for (const cat of enabled) {
+      if (cat !== "statistics" && CATEGORY_ACTIONS[cat]) {
+        steps.push(cat);
+      }
+    }
+
+    for (let i = 0; i < steps.length; i++) {
+      // Пауза 65с между запросами к WB (глобальный лимит + statistics: 1 req/min)
+      if (i > 0) await new Promise((r) => setTimeout(r, 65000));
+      const actionRef = CATEGORY_ACTIONS[steps[i]];
+      if (actionRef) {
+        await ctx.runAction(actionRef, { shopId, apiKey: shop.apiKey });
+      }
+    }
+
+    await ctx.runMutation(internal.shops.updateLastSync, { id: shopId });
   },
 });
 
 // Запрос аналитики для конкретного периода (вызывается с фронтенда при смене дат)
-// Прямой fetch без вложенных actions чтобы избежать таймаутов Cloudflare
 export const fetchAnalytics = action({
   args: {
     shopId: v.id("shops"),
@@ -48,7 +80,7 @@ export const fetchAnalytics = action({
       },
     );
 
-    if (!res.ok) return 0; // Тихо пропускаем ошибки (429 и др.)
+    if (!res.ok) return 0;
 
     const data = await res.json();
     const products = data.data?.products ?? [];

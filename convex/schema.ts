@@ -54,6 +54,7 @@ export default defineSchema({
 
   financials: defineTable({
     shopId: v.id("shops"),
+    rrdId: v.optional(v.number()),
     realizationreportId: v.number(),
     dateFrom: v.string(),
     dateTo: v.string(),
@@ -77,7 +78,8 @@ export default defineSchema({
     docTypeName: v.string(),
   }).index("by_shop", ["shopId"])
     .index("by_shop_report", ["shopId", "realizationreportId"])
-    .index("by_shop_date", ["shopId", "dateFrom"]),
+    .index("by_shop_date", ["shopId", "dateFrom"])
+    .index("by_shop_rrd", ["shopId", "rrdId"]),
 
   costs: defineTable({
     shopId: v.id("shops"),

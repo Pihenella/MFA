@@ -74,6 +74,8 @@ async function fetchAnalyticsForPeriod(
     const isLastPage = data.data?.isNextPage === false || products.length < 20;
     if (isLastPage) break;
     page++;
+    // Analytics API: 3 req/min, 20s interval — ждём между страницами
+    await new Promise((r) => setTimeout(r, 21000));
   }
   return allProducts;
 }

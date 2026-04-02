@@ -45,8 +45,11 @@ export function parseSimpleCostFile(rows: Record<string, unknown>[]): CostRow[] 
     if (!nmIdRaw || isNaN(nmId) || nmId <= 0) continue;
 
     const costRaw = costCol ? row[costCol] : undefined;
-    const cost = Number(costRaw);
-    if (costRaw === undefined || costRaw === null || costRaw === "" || isNaN(cost)) continue;
+    if (costRaw === undefined || costRaw === null || costRaw === "") continue;
+    const cost = typeof costRaw === "string"
+      ? Number(costRaw.replace(/\s/g, "").replace(",", "."))
+      : Number(costRaw);
+    if (isNaN(cost) || cost < 0) continue;
 
     const article = articleCol ? String(row[articleCol] ?? "") : "";
 

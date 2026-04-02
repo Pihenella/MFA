@@ -121,19 +121,12 @@ export const getCampaigns = query({
     dateFrom: v.string(),
     dateTo: v.string(),
   },
-  handler: async (ctx, { shopId, dateFrom, dateTo }) => {
-    const filterByDate = (campaigns: any[]) =>
-      campaigns.filter((c) => {
-        const d = new Date(c.updatedAt).toISOString().slice(0, 10);
-        return d >= dateFrom && d <= dateTo;
-      });
-
+  handler: async (ctx, { shopId }) => {
     if (shopId) {
-      const results = await ctx.db
+      return await ctx.db
         .query("campaigns")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
-      return filterByDate(results);
     }
     const shops = await ctx.db.query("shops").collect();
     const results = await Promise.all(
@@ -144,7 +137,7 @@ export const getCampaigns = query({
           .collect()
       )
     );
-    return filterByDate(results.flat());
+    return results.flat();
   },
 });
 

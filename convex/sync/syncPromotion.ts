@@ -50,9 +50,13 @@ export const syncPromotion = internalAction({
         const today = new Date().toISOString().slice(0, 10);
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
         // Fetch stats via v3 GET endpoint (max 50 ids per request)
+        // Пауза после list запроса перед fullstats
+        await new Promise((r) => setTimeout(r, 21000));
         const idBatches = chunk(campaignIds, 50);
-        for (const idBatch of idBatches) {
-          const idsParam = idBatch.join(",");
+        for (let bi = 0; bi < idBatches.length; bi++) {
+          // fullstats: 3 req/min, 20s interval
+          if (bi > 0) await new Promise((r) => setTimeout(r, 21000));
+          const idsParam = idBatches[bi].join(",");
           const statsRes = await fetchWithRetry(
             `https://advert-api.wildberries.ru/adv/v3/fullstats?ids=${idsParam}&beginDate=${thirtyDaysAgo}&endDate=${today}`,
             { headers },

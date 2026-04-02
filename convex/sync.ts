@@ -15,7 +15,10 @@ export const syncShop = internalAction({
   handler: async (ctx, { shopId, apiKey, enabledCategories }) => {
     const categories = enabledCategories ?? DEFAULT_CATEGORIES;
 
-    for (const category of categories) {
+    for (let i = 0; i < categories.length; i++) {
+      // Пауза между категориями чтобы не превышать глобальный лимит WB на продавца
+      if (i > 0) await new Promise((r) => setTimeout(r, 25000));
+      const category = categories[i];
       switch (category) {
         case "statistics":
           await ctx.runAction(internal.sync.syncStatistics.syncStatistics, { shopId, apiKey });
