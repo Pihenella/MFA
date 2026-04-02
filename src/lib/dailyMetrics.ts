@@ -65,12 +65,15 @@ export function aggregateByDay(input: AggregationInput): DailyDataPoint[] {
     if (!date) continue;
     const d = getDay(date);
 
-    if (f.docTypeName === "Продажа") {
+    const isSale = f.docTypeName === "Продажа" && (f.retailAmount > 0 || f.nmId > 0);
+    const isReturn = f.docTypeName === "Возврат" && f.nmId > 0;
+
+    if (isSale) {
       d.salesSeller += f.retailPrice ?? f.retailAmount ?? 0;
       d.forPayTotal += f.ppvzForPay || 0;
       d.salesCount += 1;
       d.salesByNm.set(f.nmId, (d.salesByNm.get(f.nmId) ?? 0) + 1);
-    } else if (f.docTypeName === "Возврат") {
+    } else if (isReturn) {
       d.returnsSeller += Math.abs(f.retailPrice ?? f.retailAmount ?? 0);
       d.forPayTotal -= Math.abs(f.ppvzForPay || 0);
       d.returnsCount += 1;

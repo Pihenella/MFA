@@ -221,13 +221,17 @@ export function groupByReportFull(
     const s = map.get(r.realizationreportId)!;
     s.nmIds.add(r.nmId);
 
-    if (r.docTypeName === "Продажа") {
+    // Фильтруем фейковые записи (Возмещения ПВЗ с nmId=0)
+    const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || r.nmId > 0);
+    const isReturn = r.docTypeName === "Возврат" && r.nmId > 0;
+
+    if (isSale) {
       s.salesSeller += r.retailPrice ?? r.retailAmount;
       s.forPaySales += r.ppvzForPay;
       s.salesWbDisc += r.retailAmount;
       s.salesQty += 1;
       s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
-    } else if (r.docTypeName === "Возврат") {
+    } else if (isReturn) {
       s.returnsSeller += Math.abs(r.retailPrice ?? r.retailAmount);
       s.forPayReturns += Math.abs(r.ppvzForPay);
       s.returnsWbDisc += Math.abs(r.retailAmount);
@@ -267,12 +271,11 @@ export function groupByReportFull(
     const commission = revenueSeller - forPayTotal;
     // Валовая прибыль = revenueSeller - себестоимость (как в МП Факт)
     const grossProfit = revenueSeller - costTotal;
-    // Реклама: удержания из отчёта реализации включают рекламу — вычитаем чтобы не считать дважды
     const otherDeductions = Math.max(0, Math.abs(s.deductions) - adsPerReport);
-    // Расходы МП = комиссия + логистика + хранение + приёмка + штрафы + удержания (без рекламы) - компенсации
-    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + otherDeductions - s.surcharges;
-    // Прибыль до налога = валовая прибыль - расходы МП - реклама
-    const profitBeforeTax = grossProfit - mpExpenses - adsPerReport;
+    // Расходы МП = комиссия + логистика + хранение + приёмка + штрафы + реклама + удержания - компенсации (как в МП Факт)
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsPerReport + otherDeductions - s.surcharges;
+    // Прибыль до налога = валовая прибыль - расходы МП
+    const profitBeforeTax = grossProfit - mpExpenses;
     // Налог = 6% от выручки со скидкой WB
     const tax = revenueWbDisc * 0.06;
     const profit = profitBeforeTax - tax;
@@ -454,13 +457,16 @@ export function groupByPeriodFull(
     if (r.dateFrom < s.firstDate) s.firstDate = r.dateFrom;
     s.nmIds.add(r.nmId);
 
-    if (r.docTypeName === "Продажа") {
+    const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || r.nmId > 0);
+    const isReturn = r.docTypeName === "Возврат" && r.nmId > 0;
+
+    if (isSale) {
       s.salesSeller += r.retailPrice ?? r.retailAmount;
       s.forPaySales += r.ppvzForPay;
       s.salesWbDisc += r.retailAmount;
       s.salesQty += 1;
       s.salesByNm.set(r.nmId, (s.salesByNm.get(r.nmId) ?? 0) + 1);
-    } else if (r.docTypeName === "Возврат") {
+    } else if (isReturn) {
       s.returnsSeller += Math.abs(r.retailPrice ?? r.retailAmount);
       s.forPayReturns += Math.abs(r.ppvzForPay);
       s.returnsWbDisc += Math.abs(r.retailAmount);
@@ -495,13 +501,11 @@ export function groupByPeriodFull(
       costTotal += unitCost * (sold - returned);
     }
 
-    // Комиссия = revenueSeller - forPayTotal (как в МП Факт)
     const commission = revenueSeller - forPayTotal;
-    // Валовая прибыль = revenueSeller - себестоимость
     const grossProfit = revenueSeller - costTotal;
     const otherDeductions = Math.max(0, Math.abs(s.deductions) - adsPerPeriod);
-    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + otherDeductions - s.surcharges;
-    const profitBeforeTax = grossProfit - mpExpenses - adsPerPeriod;
+    const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsPerPeriod + otherDeductions - s.surcharges;
+    const profitBeforeTax = grossProfit - mpExpenses;
     const tax = revenueWbDisc * 0.06;
     const profit = profitBeforeTax - tax;
     const roi = costTotal > 0 ? (profit / costTotal) * 100 : 0;

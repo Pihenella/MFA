@@ -152,8 +152,9 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Как в МП Факт: единый источник данных для P&L
   // ══════════════════════════════════════════════════════════════
 
-  const salesFin = financials.filter((f) => f.docTypeName === "Продажа");
-  const returnsFin = financials.filter((f) => f.docTypeName === "Возврат");
+  // Фильтруем фейковые "Продажа" записи (Возмещения ПВЗ с nmId=0 и retailAmount=0)
+  const salesFin = financials.filter((f) => f.docTypeName === "Продажа" && (f.retailAmount > 0 || f.nmId > 0));
+  const returnsFin = financials.filter((f) => f.docTypeName === "Возврат" && f.nmId > 0);
 
   // ── Продажи и возвраты (цена продавца = retailPrice, со скидкой WB = retailAmount) ──
   const salesSeller = salesFin.reduce((s, f) => s + (f.retailPrice ?? f.retailAmount ?? 0), 0);
@@ -233,7 +234,9 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Реклама
   const ads = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
 
-  // Удержания из отчёта реализации включают рекламу — вычитаем чтобы не считать дважды
+  // Удержания из отчёта реализации включают рекламу — разделяем:
+  // крупные удержания (>= 10000 с nmId=0) = рекламные удержания WB
+  // остальные = прочие удержания
   const otherDeductions = Math.max(0, deductions - ads);
 
   const commissionPercent = pct(commission);
@@ -245,12 +248,12 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   const deductionsPercent = pct(otherDeductions);
   const compensationPercent = pct(compensation);
 
-  // Итого расходы МП (как в МП Факт — без рекламы, она отдельно)
-  const mpExpenses = commission + logistics + storage + acceptance + penalties + otherDeductions - compensation;
+  // Итого расходы МП (как в МП Факт — включает рекламу)
+  const mpExpenses = commission + logistics + storage + acceptance + penalties + ads + otherDeductions - compensation;
   const mpExpensesPercent = pct(mpExpenses);
 
-  // ── Прибыль до налога = Валовая прибыль - Расходы МП - Реклама ──
-  const profitBeforeTax = grossProfit - mpExpenses - ads;
+  // ── Прибыль до налога = Валовая прибыль - Расходы МП ──
+  const profitBeforeTax = grossProfit - mpExpenses;
   const profitBeforeTaxPercent = pct(profitBeforeTax);
 
   // ── Налог (УСН 6% от выручки со скидкой WB — как в МП Факт) ──
