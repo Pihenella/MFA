@@ -68,11 +68,17 @@ export const getFinancials = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    // WB financials имеют dateFrom = начало недельного отчёта (понедельник).
+    // Сдвигаем на 7 дней назад, чтобы захватить отчёты, чей период пересекается с запрошенным.
+    const adjustedFrom = new Date(dateFrom + "T00:00:00Z");
+    adjustedFrom.setDate(adjustedFrom.getDate() - 7);
+    const adjustedDateFrom = adjustedFrom.toISOString().slice(0, 10);
+
     if (shopId) {
       return await ctx.db
         .query("financials")
         .withIndex("by_shop_date", (q) =>
-          q.eq("shopId", shopId).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+          q.eq("shopId", shopId).gte("dateFrom", adjustedDateFrom).lte("dateFrom", dateTo)
         )
         .collect();
     }
@@ -82,7 +88,7 @@ export const getFinancials = query({
         ctx.db
           .query("financials")
           .withIndex("by_shop_date", (q) =>
-            q.eq("shopId", s._id).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+            q.eq("shopId", s._id).gte("dateFrom", adjustedDateFrom).lte("dateFrom", dateTo)
           )
           .collect()
       )

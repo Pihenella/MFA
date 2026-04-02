@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { format, subDays } from "date-fns";
+import { format, subDays, startOfMonth, subMonths } from "date-fns";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
@@ -19,17 +19,17 @@ function pctDelta(now: number, prev: number) {
 }
 
 const TODAY = format(new Date(), "yyyy-MM-dd");
-const WEEK_AGO = format(subDays(new Date(), 6), "yyyy-MM-dd");
-const PREV_END = format(subDays(new Date(), 7), "yyyy-MM-dd");
-const PREV_START = format(subDays(new Date(), 13), "yyyy-MM-dd");
+const MONTH_START = format(startOfMonth(new Date()), "yyyy-MM-dd");
+const PREV_MONTH_START = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd");
+const PREV_MONTH_END = format(subDays(startOfMonth(new Date()), 1), "yyyy-MM-dd");
 
 export default function DashboardPage() {
   const shops = useQuery(api.shops.list) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
-  const [period, setPeriod] = useState({ from: WEEK_AGO, to: TODAY });
-  const [comparePeriod, setComparePeriod] = useState({ from: PREV_START, to: PREV_END });
+  const [period, setPeriod] = useState({ from: MONTH_START, to: TODAY });
+  const [comparePeriod, setComparePeriod] = useState({ from: PREV_MONTH_START, to: PREV_MONTH_END });
   const [tab, setTab] = useState<"all" | "wb" | "ozon">("all");
 
   const { now, prev } = useDashboardData(period, comparePeriod, shopId);
