@@ -26,7 +26,7 @@ const CATEGORIES = [
   { id: "tariffs", label: "Тарифы", description: "Тарифы на логистику и хранение" },
 ] as const;
 
-const DEFAULT_CATEGORIES = ["statistics", "promotion"];
+const DEFAULT_CATEGORIES = ["statistics", "promotion", "analytics"];
 
 function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
   const logs = useQuery(api.shops.getSyncLog, { shopId }) ?? [];
