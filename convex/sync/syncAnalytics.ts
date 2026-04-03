@@ -1,7 +1,7 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import { chunk, BATCH_SIZE } from "./helpers";
 
 export const upsertNmReports = internalMutation({
   args: { shopId: v.id("shops"), reports: v.array(v.any()) },
@@ -41,6 +41,39 @@ export const upsertNmReports = internalMutation({
   },
 });
 
+// Один запрос к WB Analytics API с простым retry (без fetchWithRetry)
+async function fetchAnalyticsPage(
+  headers: Record<string, string>,
+  body: object,
+  retries = 3,
+): Promise<any> {
+  const url = `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (res.status === 429 && attempt < retries) {
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 15_000));
+        continue;
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 500)}`);
+      }
+      return await res.json();
+    } catch (e) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 10_000));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 // Запросить аналитику по продуктам за указанный период (все страницы)
 async function fetchAnalyticsForPeriod(
   headers: Record<string, string>,
@@ -58,16 +91,7 @@ async function fetchAnalyticsForPeriod(
       selectedPeriod: { start, end },
       page,
     };
-    const res = await fetchWithRetry(
-      `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      },
-    );
-    await assertOk(res);
-    const data = await res.json();
+    const data = await fetchAnalyticsPage(headers, body);
     const products = data.data?.products ?? data.data?.cards ?? [];
     if (!Array.isArray(products) || products.length === 0) break;
     allProducts.push(...products);
