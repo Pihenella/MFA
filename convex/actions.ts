@@ -11,12 +11,12 @@ const SYNC_STEPS: Array<{ key: string; ref: any; delayMs: number }> = [
   { key: "statistics_stocks",     ref: internal.sync.syncStatistics.syncStocks,     delayMs: 130_000 },
   { key: "statistics_financials", ref: internal.sync.syncStatistics.syncFinancials, delayMs: 195_000 },
   { key: "promotion",            ref: internal.sync.syncPromotion.syncPromotion,   delayMs: 300_000 },
-  { key: "analytics",            ref: internal.sync.syncAnalytics.syncAnalytics,   delayMs: 360_000 },
-  { key: "content",              ref: internal.sync.syncContent.syncContent,        delayMs: 420_000 },
-  { key: "feedbacks",            ref: internal.sync.syncFeedbacks.syncFeedbacks,    delayMs: 450_000 },
-  { key: "prices",               ref: internal.sync.syncPrices.syncPrices,          delayMs: 480_000 },
-  { key: "returns",              ref: internal.sync.syncReturns.syncReturns,        delayMs: 510_000 },
-  { key: "tariffs",              ref: internal.sync.syncTariffs.syncTariffs,         delayMs: 540_000 },
+  { key: "content",              ref: internal.sync.syncContent.syncContent,        delayMs: 390_000 },
+  { key: "feedbacks",            ref: internal.sync.syncFeedbacks.syncFeedbacks,    delayMs: 420_000 },
+  { key: "prices",               ref: internal.sync.syncPrices.syncPrices,          delayMs: 450_000 },
+  { key: "returns",              ref: internal.sync.syncReturns.syncReturns,        delayMs: 480_000 },
+  { key: "tariffs",              ref: internal.sync.syncTariffs.syncTariffs,         delayMs: 510_000 },
+  { key: "analytics",            ref: internal.sync.syncAnalytics.syncAnalytics,   delayMs: 570_000 },
 ];
 
 // Ручной триггер: планирует каждую категорию через scheduler с задержками

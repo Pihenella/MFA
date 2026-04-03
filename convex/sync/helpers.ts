@@ -29,11 +29,16 @@ export async function fetchWithRetry(
     throw e;
   }
   if ((res.status === 429 || res.status >= 500) && retries > 0) {
-    // Используем X-Ratelimit-Retry от WB, если есть; иначе экспоненциальный backoff
     const retryAfter = res.headers.get("X-Ratelimit-Retry");
-    const delay = retryAfter
-      ? Math.ceil(parseFloat(retryAfter)) * 1000
-      : (6 - retries) * 5000; // 5s, 10s, 15s, 20s, 25s
+    let delay: number;
+    if (retryAfter) {
+      delay = Math.ceil(parseFloat(retryAfter)) * 1000;
+    } else if (res.status === 429) {
+      // Глобальный лимит WB — ждём дольше: 30s, 60s, 90s, 120s, 150s
+      delay = (6 - retries) * 30_000;
+    } else {
+      delay = (6 - retries) * 5000;
+    }
     await new Promise((r) => setTimeout(r, delay));
     return fetchWithRetry(url, options, retries - 1);
   }
