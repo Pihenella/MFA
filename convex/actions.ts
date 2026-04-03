@@ -16,7 +16,7 @@ const SYNC_STEPS: Array<{ key: string; ref: any; delayMs: number }> = [
   { key: "prices",               ref: internal.sync.syncPrices.syncPrices,          delayMs: 450_000 },
   { key: "returns",              ref: internal.sync.syncReturns.syncReturns,        delayMs: 480_000 },
   { key: "tariffs",              ref: internal.sync.syncTariffs.syncTariffs,         delayMs: 510_000 },
-  { key: "analytics",            ref: internal.sync.syncAnalytics.syncAnalytics,   delayMs: 570_000 },
+  { key: "analytics",            ref: internal.sync.syncAnalytics.syncAnalytics,   delayMs: 660_000 },
 ];
 
 // Ручной триггер: планирует каждую категорию через scheduler с задержками
@@ -42,7 +42,7 @@ export const triggerSync = action({
     }
 
     // Обновить lastSyncAt после последней запланированной задачи
-    await ctx.scheduler.runAfter(600_000, internal.shops.updateLastSync, { id: shopId });
+    await ctx.scheduler.runAfter(720_000, internal.shops.updateLastSync, { id: shopId });
   },
 });
 
