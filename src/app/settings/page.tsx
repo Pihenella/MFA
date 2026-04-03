@@ -141,6 +141,7 @@ export default function SettingsPage() {
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [syncing, setSyncing] = useState<Id<"shops"> | null>(null);
+  const [syncScheduled, setSyncScheduled] = useState<Id<"shops"> | null>(null);
 
   const handleAdd = async () => {
     if (!name || !apiKey) return;
@@ -153,6 +154,8 @@ export default function SettingsPage() {
     setSyncing(shopId);
     try {
       await triggerSync({ shopId });
+      setSyncScheduled(shopId);
+      setTimeout(() => setSyncScheduled(null), 600_000); // 10 мин
     } finally {
       setSyncing(null);
     }
@@ -223,6 +226,12 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
+              {syncScheduled === shop._id && (
+                <div className="mt-2 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-2 flex items-center gap-2">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Синхронизация запланирована. Данные обновятся в течение 10 минут.
+                </div>
+              )}
               <CategoryCheckboxes
                 shopId={shop._id}
                 current={shop.enabledCategories ?? DEFAULT_CATEGORIES}
