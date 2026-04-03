@@ -16,7 +16,18 @@ export async function fetchWithRetry(
   options: RequestInit,
   retries = 5,
 ): Promise<Response> {
-  const res = await fetch(url, options);
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (e) {
+    // Сетевая ошибка (HTTP/2 connection error, DNS, timeout и т.д.)
+    if (retries > 0) {
+      const delay = (6 - retries) * 5000;
+      await new Promise((r) => setTimeout(r, delay));
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw e;
+  }
   if ((res.status === 429 || res.status >= 500) && retries > 0) {
     // Используем X-Ratelimit-Retry от WB, если есть; иначе экспоненциальный backoff
     const retryAfter = res.headers.get("X-Ratelimit-Retry");
