@@ -10,15 +10,24 @@ export function useDashboardData(period: Period, comparePeriod: Period, shopId?:
   const fetchedRef = useRef<string>("");
 
   // Загружаем аналитику для текущего и сравнительного периода при смене дат/магазина
+  // Запросы идут последовательно с паузой, чтобы не превышать глобальный лимит WB
   useEffect(() => {
     if (!shopId) return;
     const key = `${shopId}:${period.from}:${period.to}:${comparePeriod.from}:${comparePeriod.to}`;
     if (fetchedRef.current === key) return;
     fetchedRef.current = key;
 
-    // Запрашиваем аналитику для обоих периодов
-    fetchAnalytics({ shopId, dateFrom: period.from, dateTo: period.to }).catch(() => {});
-    fetchAnalytics({ shopId, dateFrom: comparePeriod.from, dateTo: comparePeriod.to }).catch(() => {});
+    let cancelled = false;
+    (async () => {
+      try {
+        await fetchAnalytics({ shopId, dateFrom: period.from, dateTo: period.to });
+      } catch { /* logged on backend */ }
+      if (cancelled) return;
+      try {
+        await fetchAnalytics({ shopId, dateFrom: comparePeriod.from, dateTo: comparePeriod.to });
+      } catch { /* logged on backend */ }
+    })();
+    return () => { cancelled = true; };
   }, [shopId, period.from, period.to, comparePeriod.from, comparePeriod.to, fetchAnalytics]);
 
   const ordersNow = useQuery(api.dashboard.getOrders, {
