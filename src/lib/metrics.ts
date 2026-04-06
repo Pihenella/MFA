@@ -248,9 +248,9 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Компенсации (доплаты)
   const compensation = financials.reduce((s, f) => s + (f.additionalPayment || 0), 0);
 
-  // Реклама: берём максимум из campaigns API и рекламных удержаний
-  const campaignsSpent = campaigns.reduce((s, c) => s + (c.spent || 0), 0);
-  const ads = Math.max(campaignsSpent, adDeductions);
+  // Реклама: используем рекламные удержания из финансового отчёта (фильтруются по периоду).
+  // campaigns API хранит суммарные расходы без привязки к периоду — не подходит для P&L.
+  const ads = adDeductions;
 
   const commissionPercent = pct(commission);
   const logisticsPercent = pct(logistics);

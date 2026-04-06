@@ -77,12 +77,8 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
     finByNm.get(f.nmId)!.push(f);
   }
 
-  // Group campaigns by nmId (if available)
-  const adsByNm = new Map<number, number>();
-  for (const c of campaigns) {
-    const id = (c as { nmId?: number }).nmId;
-    if (id) adsByNm.set(id, (adsByNm.get(id) ?? 0) + (c.spent || 0));
-  }
+  // Рекламные удержания в финансовом отчёте идут с nmId=0,
+  // их нельзя разнести по конкретным товарам — реклама = 0 на уровне товара
 
   const results: ProductMetrics[] = [];
 
@@ -121,7 +117,7 @@ export function computeProductMetrics(input: ProductMetricsInput): ProductMetric
     );
     const storage = nmFin.reduce((s, f) => s + (f.storageAmount || 0), 0);
     const penalties = nmFin.reduce((s, f) => s + (f.penalty || 0), 0);
-    const ads = adsByNm.get(nmId) ?? 0;
+    const ads = 0; // Реклама учитывается только на уровне дашборда (удержания с nmId=0)
 
     const totalExpenses = commission + logistics + storage + ads + penalties;
     const profit = grossProfit - totalExpenses;
