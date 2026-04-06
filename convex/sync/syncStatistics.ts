@@ -109,6 +109,8 @@ export const upsertFinancials = internalMutation({
         realizationreportId: Number(r.realizationreport_id) || 0,
         dateFrom: r.date_from?.slice(0, 10) ?? "",
         dateTo: r.date_to?.slice(0, 10) ?? "",
+        rrDt: r.rr_dt?.slice(0, 10) ?? r.date_from?.slice(0, 10) ?? "",
+        saleDt: r.sale_dt?.slice(0, 10) ?? undefined,
         supplierArticle: String(r.supplierArticle ?? r.sa_name ?? ""),
         nmId: Number(r.nm_id) || 0,
         subject: String(r.subject_name ?? ""),

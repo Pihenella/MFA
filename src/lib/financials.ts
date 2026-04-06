@@ -435,11 +435,12 @@ export function groupByPeriodFull(
   }>();
 
   for (const r of rows) {
-    const key = getKey(r.dateFrom);
+    const opDate = (r as any).rrDt ?? r.dateFrom;
+    const key = getKey(opDate);
     if (!map.has(key)) {
       map.set(key, {
         key,
-        firstDate: r.dateFrom,
+        firstDate: opDate,
         salesSeller: 0,
         returnsSeller: 0,
         forPaySales: 0,
@@ -462,7 +463,7 @@ export function groupByPeriodFull(
       });
     }
     const s = map.get(key)!;
-    if (r.dateFrom < s.firstDate) s.firstDate = r.dateFrom;
+    if (opDate < s.firstDate) s.firstDate = opDate;
     s.nmIds.add(r.nmId);
 
     const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || r.nmId > 0);

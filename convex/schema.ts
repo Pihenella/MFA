@@ -58,6 +58,8 @@ export default defineSchema({
     realizationreportId: v.number(),
     dateFrom: v.string(),
     dateTo: v.string(),
+    rrDt: v.optional(v.string()),    // Дата операции (rr_dt из WB API) — для точной фильтрации по дате
+    saleDt: v.optional(v.string()),  // Дата продажи (sale_dt из WB API)
     supplierArticle: v.string(),
     nmId: v.number(),
     subject: v.string(),
@@ -82,7 +84,8 @@ export default defineSchema({
   }).index("by_shop", ["shopId"])
     .index("by_shop_report", ["shopId", "realizationreportId"])
     .index("by_shop_date", ["shopId", "dateFrom"])
-    .index("by_shop_rrd", ["shopId", "rrdId"]),
+    .index("by_shop_rrd", ["shopId", "rrdId"])
+    .index("by_shop_rrdt", ["shopId", "rrDt"]),
 
   costs: defineTable({
     shopId: v.id("shops"),

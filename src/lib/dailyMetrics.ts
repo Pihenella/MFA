@@ -61,7 +61,7 @@ export function aggregateByDay(input: AggregationInput): DailyDataPoint[] {
 
   // Financials — единый источник для P&L (как МП Факт)
   for (const f of financials) {
-    const date = f.dateFrom ?? "";
+    const date = (f as any).rrDt ?? f.dateFrom ?? "";
     if (!date) continue;
     const d = getDay(date);
 

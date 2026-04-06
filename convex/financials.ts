@@ -8,16 +8,27 @@ export const getReports = query({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    // Фильтруем по rrDt — дате операции (как МП Факт)
     if (shopId) {
       return await ctx.db
         .query("financials")
-        .withIndex("by_shop_date", (q) =>
-          q.eq("shopId", shopId).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+        .withIndex("by_shop_rrdt", (q) =>
+          q.eq("shopId", shopId).gte("rrDt", dateFrom).lte("rrDt", dateTo)
         )
         .collect();
     }
-    const rows = await ctx.db.query("financials").collect();
-    return rows.filter((r) => r.dateFrom >= dateFrom && r.dateFrom <= dateTo);
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(
+      shops.map((s) =>
+        ctx.db
+          .query("financials")
+          .withIndex("by_shop_rrdt", (q) =>
+            q.eq("shopId", s._id).gte("rrDt", dateFrom).lte("rrDt", dateTo)
+          )
+          .collect()
+      )
+    );
+    return results.flat();
   },
 });
 
