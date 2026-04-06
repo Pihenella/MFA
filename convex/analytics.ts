@@ -252,7 +252,9 @@ export const getSalesAnalytics = query({
       const commission = revS - forPay;
       const grossProfit = revS - cogs;
       const expenses = commission + g.logistics + g.storage + g.penalties + g.acceptance + g.deductions - g.compensation;
-      const profit = grossProfit - expenses;
+      const tax = revW * 0.06; // УСН 6% от выручки со скидкой WB (как в МП Факт)
+      const profitBeforeTax = grossProfit - expenses;
+      const profit = profitBeforeTax - tax;
       const pct = (v: number) => revS !== 0 ? r2((v / Math.abs(revS)) * 100) : 0;
 
       let views = 0, cart = 0;
