@@ -98,6 +98,8 @@ export const getSalesAnalytics = query({
         ).collect()
       )).then((r) => r.flat()),
 
+      // NmReports — агрегированные данные воронки, нельзя нарезать по произвольному периоду.
+      // Берём последнюю запись по каждому nmId (самая свежая агрегация).
       Promise.all(active.map((s) =>
         ctx.db.query("nmReports").withIndex("by_shop", (q) => q.eq("shopId", s._id)).collect()
       )).then((r) => r.flat()),
@@ -125,11 +127,16 @@ export const getSalesAnalytics = query({
       });
     }
 
+    // Дедупликация nmReports: берём запись с самым свежим periodEnd для каждого nmId
     const nmMap = new Map<number, { views: number; cart: number }>();
+    const nmSeen = new Map<number, string>(); // nmId → best periodEnd
     for (const r of nmReports) {
-      const ex = nmMap.get(r.nmId);
-      if (!ex) nmMap.set(r.nmId, { views: r.openCardCount, cart: r.addToCartCount });
-      else { ex.views += r.openCardCount; ex.cart += r.addToCartCount; }
+      const prevEnd = nmSeen.get(r.nmId) ?? "";
+      const thisEnd = r.periodEnd ?? "";
+      if (thisEnd >= prevEnd) {
+        nmMap.set(r.nmId, { views: r.openCardCount, cart: r.addToCartCount });
+        nmSeen.set(r.nmId, thisEnd);
+      }
     }
 
     // Grouping key functions
