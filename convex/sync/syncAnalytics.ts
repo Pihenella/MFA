@@ -41,11 +41,13 @@ export const upsertNmReports = internalMutation({
   },
 });
 
-// Один запрос к WB Analytics API с простым retry (без fetchWithRetry)
+// Один запрос к WB Analytics API с retry.
+// Глобальный лимит WB сбрасывается ~1 раз в минуту.
+// При 429 ждём 60с × attempt, чтобы дать лимиту восстановиться.
 async function fetchAnalyticsPage(
   headers: Record<string, string>,
   body: object,
-  retries = 3,
+  retries = 4,
 ): Promise<any> {
   const url = `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -56,7 +58,8 @@ async function fetchAnalyticsPage(
         body: JSON.stringify(body),
       });
       if (res.status === 429 && attempt < retries) {
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 30_000));
+        // Ждём 60с, 120с, 180с, 240с — дать глобальному лимиту восстановиться
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 60_000));
         continue;
       }
       if (!res.ok) {
@@ -66,7 +69,7 @@ async function fetchAnalyticsPage(
       return await res.json();
     } catch (e) {
       if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 20_000));
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 30_000));
         continue;
       }
       throw e;

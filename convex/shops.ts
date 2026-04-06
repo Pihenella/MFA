@@ -62,11 +62,12 @@ export const updateCategories = mutation({
 export const getSyncLog = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
+    // Берём достаточно записей, чтобы покрыть все эндпоинты (12+ эндпоинтов × 2-3 цикла)
     const logs = await ctx.db
       .query("syncLog")
       .withIndex("by_shop", (q) => q.eq("shopId", shopId))
       .order("desc")
-      .take(20);
+      .take(100);
     return logs;
   },
 });
