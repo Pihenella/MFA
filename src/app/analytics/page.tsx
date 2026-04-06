@@ -1,6 +1,6 @@
 "use client";
-import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, startOfMonth, subMonths, subDays } from "date-fns";
@@ -138,6 +138,25 @@ export default function AnalyticsPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("article");
   const [sortKey, setSortKey] = useState<string>("revenueSeller");
   const [sortAsc, setSortAsc] = useState(false);
+
+  // Запрашиваем аналитику воронки у WB для выбранного периода (как МП Факт)
+  const fetchAnalytics = useAction(api.actions.fetchAnalytics);
+  const fetchedRef = useRef("");
+  useEffect(() => {
+    const activeShops = shopId ? shops.filter((s) => s._id === shopId) : shops;
+    if (activeShops.length === 0) return;
+    const key = `${shopId ?? "all"}:${period.from}:${period.to}`;
+    if (fetchedRef.current === key) return;
+    fetchedRef.current = key;
+    // Последовательно для каждого магазина, чтобы не превысить лимит WB
+    (async () => {
+      for (const shop of activeShops) {
+        try {
+          await fetchAnalytics({ shopId: shop._id, dateFrom: period.from, dateTo: period.to });
+        } catch { /* logged on backend */ }
+      }
+    })();
+  }, [shopId, shops, period.from, period.to, fetchAnalytics]);
 
   const data = useQuery(api.analytics.getSalesAnalytics, {
     shopId, dateFrom: period.from, dateTo: period.to, groupBy,

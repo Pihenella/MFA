@@ -98,11 +98,15 @@ export const getSalesAnalytics = query({
         ).collect()
       )).then((r) => r.flat()),
 
-      // NmReports — агрегированные данные воронки, нельзя нарезать по произвольному периоду.
-      // Берём последнюю запись по каждому nmId (самая свежая агрегация).
-      Promise.all(active.map((s) =>
-        ctx.db.query("nmReports").withIndex("by_shop", (q) => q.eq("shopId", s._id)).collect()
-      )).then((r) => r.flat()),
+      // NmReports — сначала ищем записи с точным periodStart = dateFrom (запрошенные через fetchAnalytics).
+      // Если нет — берём все и дедупликуем по последней дате.
+      Promise.all(active.map(async (s) => {
+        const exact = await ctx.db.query("nmReports")
+          .withIndex("by_shop_period", (q) => q.eq("shopId", s._id).eq("periodStart", dateFrom))
+          .collect();
+        if (exact.length > 0) return exact;
+        return ctx.db.query("nmReports").withIndex("by_shop", (q) => q.eq("shopId", s._id)).collect();
+      })).then((r) => r.flat()),
 
       Promise.all(active.map((s) =>
         ctx.db.query("costs").withIndex("by_shop", (q) => q.eq("shopId", s._id)).collect()
