@@ -200,5 +200,6 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_shop", ["shopId"])
     .index("by_shop_nm", ["shopId", "nmId"])
-    .index("by_shop_nm_date", ["shopId", "nmId", "periodStart"]),
+    .index("by_shop_nm_date", ["shopId", "nmId", "periodStart"])
+    .index("by_shop_period", ["shopId", "periodStart"]),
 });

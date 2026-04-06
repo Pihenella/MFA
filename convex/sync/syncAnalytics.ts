@@ -108,7 +108,8 @@ function mapProducts(products: any[], start: string, end: string) {
   return products.map((p: any) => {
     const stat = p.statistic?.selected ?? p.statistics?.selectedPeriod ?? p;
     const conv = stat.conversions ?? {};
-    const period = stat.period ?? {};
+    // Всегда используем ЗАПРОШЕННЫЕ даты, а не даты из ответа WB API,
+    // чтобы periodStart/periodEnd точно совпадали с dateFrom/dateTo дашборда
     return {
       nmID: p.product?.nmId ?? p.nmID ?? p.nmId,
       statistics: {
@@ -123,8 +124,8 @@ function mapProducts(products: any[], start: string, end: string) {
           },
         },
       },
-      periodStart: period.start ?? start,
-      periodEnd: period.end ?? end,
+      periodStart: start,
+      periodEnd: end,
     };
   });
 }

@@ -149,9 +149,24 @@ export const getNmReports = query({
     dateFrom: v.optional(v.string()),
     dateTo: v.optional(v.string()),
   },
-  handler: async (ctx, { shopId }) => {
-    // NM Reports хранятся агрегированно за период синка — возвращаем все для магазина
+  handler: async (ctx, { shopId, dateFrom, dateTo }) => {
+    // NM Reports хранятся агрегированно за запрошенный период.
+    // Фильтруем по periodStart === dateFrom, чтобы вернуть данные только за нужный период.
+    const filterByPeriod = (rows: any[]) => {
+      if (!dateFrom) return rows;
+      return rows.filter((r) => r.periodStart === dateFrom && (!dateTo || r.periodEnd === dateTo));
+    };
+
     if (shopId) {
+      if (dateFrom) {
+        const rows = await ctx.db
+          .query("nmReports")
+          .withIndex("by_shop_period", (q) =>
+            q.eq("shopId", shopId).eq("periodStart", dateFrom)
+          )
+          .collect();
+        return filterByPeriod(rows);
+      }
       return await ctx.db
         .query("nmReports")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
@@ -159,14 +174,22 @@ export const getNmReports = query({
     }
     const shops = await ctx.db.query("shops").collect();
     const results = await Promise.all(
-      shops.map((s) =>
-        ctx.db
+      shops.map((s) => {
+        if (dateFrom) {
+          return ctx.db
+            .query("nmReports")
+            .withIndex("by_shop_period", (q) =>
+              q.eq("shopId", s._id).eq("periodStart", dateFrom)
+            )
+            .collect();
+        }
+        return ctx.db
           .query("nmReports")
           .withIndex("by_shop", (q) => q.eq("shopId", s._id))
-          .collect()
-      )
+          .collect();
+      })
     );
-    return results.flat();
+    return filterByPeriod(results.flat());
   },
 });
 
