@@ -34,8 +34,8 @@ export async function fetchWithRetry(
     if (retryAfter) {
       delay = Math.ceil(parseFloat(retryAfter)) * 1000;
     } else if (res.status === 429) {
-      // Глобальный лимит WB — ждём: 10s, 20s, 30s, 40s, 50s (суммарно 150с)
-      delay = (6 - retries) * 10_000;
+      // Глобальный лимит WB — ждём: 20s, 40s, 60s, 80s, 100s (суммарно 300с)
+      delay = (6 - retries) * 20_000;
     } else {
       delay = (6 - retries) * 5000;
     }

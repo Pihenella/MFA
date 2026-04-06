@@ -56,7 +56,7 @@ async function fetchAnalyticsPage(
         body: JSON.stringify(body),
       });
       if (res.status === 429 && attempt < retries) {
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 15_000));
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 30_000));
         continue;
       }
       if (!res.ok) {
@@ -66,7 +66,7 @@ async function fetchAnalyticsPage(
       return await res.json();
     } catch (e) {
       if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 10_000));
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 20_000));
         continue;
       }
       throw e;
@@ -98,8 +98,8 @@ async function fetchAnalyticsForPeriod(
     const isLastPage = data.data?.isNextPage === false || products.length < 20;
     if (isLastPage) break;
     page++;
-    // Analytics API: 3 req/min, 20s interval — ждём между страницами
-    await new Promise((r) => setTimeout(r, 21000));
+    // Analytics API: 3 req/min + global limiter — ждём 30с между страницами
+    await new Promise((r) => setTimeout(r, 30_000));
   }
   return allProducts;
 }
