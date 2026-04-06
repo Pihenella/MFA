@@ -11,108 +11,121 @@ import { cn } from "@/lib/utils";
 import { exportAnalyticsXlsx } from "@/lib/exportXlsx";
 
 const TODAY = format(new Date(), "yyyy-MM-dd");
-const THREE_MONTHS_AGO = format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd");
+const THREE_MO_AGO = format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd");
 const PREV_END = format(subDays(startOfMonth(subMonths(new Date(), 2)), 1), "yyyy-MM-dd");
 const PREV_START = format(startOfMonth(subMonths(new Date(), 5)), "yyyy-MM-dd");
 
-type GroupBy = "article" | "day" | "week" | "month" | "store" | "brand" | "subject";
+type GroupBy = "article" | "size" | "store" | "day" | "week" | "month" | "brand" | "subject" | "group";
 
 const TABS: { key: GroupBy; label: string }[] = [
   { key: "article", label: "По артикулам" },
+  { key: "size", label: "По размерам" },
   { key: "store", label: "По магазинам" },
   { key: "day", label: "По дням" },
   { key: "week", label: "По неделям" },
   { key: "month", label: "По месяцам" },
   { key: "brand", label: "По брендам" },
   { key: "subject", label: "По предметам" },
+  { key: "group", label: "По склейкам" },
 ];
 
-type Row = NonNullable<ReturnType<typeof useQuery<typeof api.analytics.getSalesAnalytics>>>[number];
+// Column definitions matching МП Факт exactly
+type Col = { key: string; label: string; group: string; unit?: "₽" | "%" | "шт"; neg?: boolean };
 
-const COLUMNS: { key: keyof Row; label: string; group: string; unit?: string; invert?: boolean }[] = [
+const COLUMNS: Col[] = [
   // Прибыль
   { key: "profit", label: "Прибыль, ₽", group: "Прибыль", unit: "₽" },
   { key: "profitPct", label: "% прибыли", group: "Прибыль", unit: "%" },
   { key: "profitPerUnit", label: "Прибыль на ед, ₽", group: "Прибыль", unit: "₽" },
   { key: "roi", label: "ROI, %", group: "Прибыль", unit: "%" },
   // Воронка продаж
-  { key: "views", label: "Переходы", group: "Воронка продаж", unit: "шт" },
+  { key: "views", label: "Переходы в карточку", group: "Воронка продаж", unit: "шт" },
   { key: "cvToCart", label: "CV в корзину, %", group: "Воронка продаж", unit: "%" },
   { key: "addToCart", label: "Добавления в корзину", group: "Воронка продаж", unit: "шт" },
   { key: "cvToOrder", label: "CV в заказ, %", group: "Воронка продаж", unit: "%" },
   // Заказы и отмены
   { key: "ordersRub", label: "Заказы, ₽", group: "Заказы и отмены", unit: "₽" },
   { key: "ordersCount", label: "Заказы, шт", group: "Заказы и отмены", unit: "шт" },
-  { key: "cancelledRub", label: "Отм. заказы, ₽", group: "Заказы и отмены", unit: "₽", invert: true },
-  { key: "cancelledCount", label: "Отм. заказы, шт", group: "Заказы и отмены", unit: "шт", invert: true },
-  { key: "cancelRate", label: "% отм. заказов", group: "Заказы и отмены", unit: "%", invert: true },
+  { key: "cancelledRub", label: "Отм. заказы, ₽", group: "Заказы и отмены", unit: "₽", neg: true },
+  { key: "cancelledCount", label: "Отм. заказы, шт", group: "Заказы и отмены", unit: "шт", neg: true },
+  { key: "cancelRate", label: "% отм. заказов", group: "Заказы и отмены", unit: "%", neg: true },
   // Выручка по цене продавца
   { key: "salesSeller", label: "Продажи, ₽", group: "Выручка по цене продавца", unit: "₽" },
-  { key: "returnsSeller", label: "Возвраты, ₽", group: "Выручка по цене продавца", unit: "₽", invert: true },
+  { key: "returnsSeller", label: "Возвраты, ₽", group: "Выручка по цене продавца", unit: "₽", neg: true },
   { key: "revenueSeller", label: "Выручка, ₽", group: "Выручка по цене продавца", unit: "₽" },
   { key: "avgCheckSeller", label: "Средний чек, ₽", group: "Выручка по цене продавца", unit: "₽" },
-  // Со скидкой WB
+  // С уч. скидки WB
   { key: "salesWbDisc", label: "Продажи, ₽", group: "С уч. скидки WB", unit: "₽" },
-  { key: "returnsWbDisc", label: "Возвраты, ₽", group: "С уч. скидки WB", unit: "₽", invert: true },
+  { key: "returnsWbDisc", label: "Возвраты, ₽", group: "С уч. скидки WB", unit: "₽", neg: true },
   { key: "revenueWbDisc", label: "Выручка, ₽", group: "С уч. скидки WB", unit: "₽" },
   { key: "avgCheckWbDisc", label: "Средний чек, ₽", group: "С уч. скидки WB", unit: "₽" },
   { key: "wbDiscPct", label: "Скидка WB, %", group: "С уч. скидки WB", unit: "%" },
   // Количество
-  { key: "salesQty", label: "Продаж, шт", group: "Количество", unit: "шт" },
-  { key: "returnsQty", label: "Возвраты, шт", group: "Количество", unit: "шт", invert: true },
-  { key: "buyoutsQty", label: "Выкупы, шт", group: "Количество", unit: "шт" },
-  { key: "buyoutsPct", label: "Выкупы, %", group: "Количество", unit: "%" },
-  { key: "returnPct", label: "% возвр.", group: "Количество", unit: "%", invert: true },
-  // Себестоимость и ВП
+  { key: "salesQty", label: "Продаж, шт", group: "Кол-во и выкупы", unit: "шт" },
+  { key: "returnsQty", label: "Возвраты, шт", group: "Кол-во и выкупы", unit: "шт", neg: true },
+  { key: "buyoutsQty", label: "Выкупы, шт", group: "Кол-во и выкупы", unit: "шт" },
+  { key: "buyoutsPct", label: "Выкупы, %", group: "Кол-во и выкупы", unit: "%" },
+  { key: "returnPct", label: "% возвр.", group: "Кол-во и выкупы", unit: "%", neg: true },
+  // Себестоимость
   { key: "cogs", label: "Себест., ₽", group: "Себестоимость", unit: "₽" },
   { key: "cogsPct", label: "% себест.", group: "Себестоимость", unit: "%" },
+  // Валовая прибыль
   { key: "grossProfit", label: "Валовая прибыль, ₽", group: "Валовая прибыль", unit: "₽" },
   { key: "grossProfitPct", label: "% вал. прибыли", group: "Валовая прибыль", unit: "%" },
   // Расходы
-  { key: "commission", label: "Комиссия, ₽", group: "Расходы", unit: "₽", invert: true },
-  { key: "commissionPct", label: "% комиссии", group: "Расходы", unit: "%", invert: true },
-  { key: "logistics", label: "Логистика, ₽", group: "Расходы", unit: "₽", invert: true },
-  { key: "logisticsPct", label: "% логистики", group: "Расходы", unit: "%", invert: true },
+  { key: "commission", label: "Комиссия, ₽", group: "Расходы МП", unit: "₽", neg: true },
+  { key: "commissionPct", label: "% комиссии", group: "Расходы МП", unit: "%", neg: true },
+  { key: "logistics", label: "Логистика, ₽", group: "Расходы МП", unit: "₽", neg: true },
+  { key: "logisticsPct", label: "% логистики", group: "Расходы МП", unit: "%", neg: true },
 ];
 
-// Column group spans for header
-function getGroupSpans() {
+function getGroupSpans(): { group: string; count: number }[] {
   const spans: { group: string; count: number }[] = [];
   let last = "";
   for (const c of COLUMNS) {
-    if (c.group !== last) {
-      spans.push({ group: c.group, count: 1 });
-      last = c.group;
-    } else {
-      spans[spans.length - 1].count++;
-    }
+    if (c.group !== last) { spans.push({ group: c.group, count: 1 }); last = c.group; }
+    else spans[spans.length - 1].count++;
   }
   return spans;
 }
 
-const GROUP_COLORS: Record<string, string> = {
-  "Прибыль": "bg-purple-50",
-  "Воронка продаж": "bg-blue-50",
-  "Заказы и отмены": "bg-orange-50",
-  "Выручка по цене продавца": "bg-green-50",
-  "С уч. скидки WB": "bg-cyan-50",
-  "Количество": "bg-yellow-50",
-  "Себестоимость": "bg-red-50",
-  "Валовая прибыль": "bg-emerald-50",
-  "Расходы": "bg-rose-50",
-};
-
-function fmt(val: number, unit?: string): string {
+function fmtNum(val: number, unit?: "₽" | "%" | "шт"): string {
   if (unit === "%") return val.toFixed(2) + " %";
   if (unit === "шт") return Math.round(val).toLocaleString("ru-RU");
   if (unit === "₽") return Math.round(val).toLocaleString("ru-RU") + " ₽";
   return String(val);
 }
 
-function colorClass(val: number, invert?: boolean): string {
-  if (val === 0) return "";
-  const positive = invert ? val < 0 : val > 0;
-  return positive ? "text-green-700" : "text-red-600";
+// ROI/Profit badge colors like МП Факт
+function profitBadge(val: number): string {
+  if (val >= 20) return "bg-green-500 text-white";
+  if (val >= 10) return "bg-green-400 text-white";
+  if (val >= 0) return "bg-yellow-400 text-gray-900";
+  return "bg-red-500 text-white";
+}
+
+function roiBadge(val: number): string {
+  if (val >= 50) return "bg-purple-500 text-white";
+  if (val >= 30) return "bg-blue-500 text-white";
+  if (val >= 0) return "bg-yellow-400 text-gray-900";
+  return "bg-red-500 text-white";
+}
+
+// Whether this tab shows product info columns (image, nmId, article)
+function hasProductCols(gb: GroupBy): boolean {
+  return gb === "article" || gb === "size" || gb === "group";
+}
+
+function firstColLabel(gb: GroupBy): string {
+  switch (gb) {
+    case "article": case "size": case "group": return "Товар";
+    case "store": return "Магазин";
+    case "day": return "Дата";
+    case "week": return "Неделя";
+    case "month": return "Месяц";
+    case "brand": return "Бренд";
+    case "subject": return "Предмет";
+  }
 }
 
 export default function AnalyticsPage() {
@@ -120,44 +133,32 @@ export default function AnalyticsPage() {
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
-  const [period, setPeriod] = useState({ from: THREE_MONTHS_AGO, to: TODAY });
+  const [period, setPeriod] = useState({ from: THREE_MO_AGO, to: TODAY });
   const [comparePeriod, setComparePeriod] = useState({ from: PREV_START, to: PREV_END });
   const [groupBy, setGroupBy] = useState<GroupBy>("article");
-  const [sortKey, setSortKey] = useState<keyof Row>("revenueSeller");
+  const [sortKey, setSortKey] = useState<string>("revenueSeller");
   const [sortAsc, setSortAsc] = useState(false);
 
   const data = useQuery(api.analytics.getSalesAnalytics, {
-    shopId,
-    dateFrom: period.from,
-    dateTo: period.to,
-    groupBy,
+    shopId, dateFrom: period.from, dateTo: period.to, groupBy,
   });
-
   const rows = data ?? [];
 
   const sorted = useMemo(() => {
-    if (!sortKey) return rows;
     return [...rows].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === "string" && typeof bv === "string") {
+      const av = (a as any)[sortKey]; const bv = (b as any)[sortKey];
+      if (typeof av === "string" && typeof bv === "string")
         return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
-      }
       return sortAsc ? Number(av) - Number(bv) : Number(bv) - Number(av);
     });
   }, [rows, sortKey, sortAsc]);
 
   const totals = useMemo(() => {
     const t: Record<string, number> = {};
-    for (const col of COLUMNS) {
-      t[col.key] = 0;
-    }
+    for (const col of COLUMNS) t[col.key] = 0;
     for (const row of sorted) {
-      for (const col of COLUMNS) {
-        t[col.key] += Number(row[col.key]) || 0;
-      }
+      for (const col of COLUMNS) t[col.key] += Number((row as any)[col.key]) || 0;
     }
-    // Recalculate ratios
     const rev = t.revenueSeller || 1;
     t.profitPct = (t.profit / Math.abs(rev)) * 100;
     t.profitPerUnit = t.buyoutsQty > 0 ? t.profit / t.buyoutsQty : 0;
@@ -177,16 +178,21 @@ export default function AnalyticsPage() {
     return t;
   }, [sorted]);
 
-  const toggleSort = (key: keyof Row) => {
+  const toggleSort = (key: string) => {
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(false); }
   };
 
   const groupSpans = getGroupSpans();
+  const showProduct = hasProductCols(groupBy);
   const tabLabel = TABS.find((t) => t.key === groupBy)?.label ?? "";
+
+  // Extra sticky columns count for product tabs
+  const stickyCount = showProduct ? 3 : 1; // Товар + Арт.WB + Арт.пост. | or just label
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Аналитика продаж Wildberries</h1>
         <select
@@ -199,16 +205,16 @@ export default function AnalyticsPage() {
         </select>
       </div>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-1 border-b">
+      {/* Tabs — plain text like МП Факт */}
+      <div className="flex flex-wrap gap-0 border-b border-gray-200">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+              "px-4 py-2.5 text-sm font-medium transition-colors relative",
               groupBy === tab.key
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600"
+                : "text-gray-500 hover:text-gray-800"
             )}
             onClick={() => { setGroupBy(tab.key); setSortKey("revenueSeller"); setSortAsc(false); }}
           >
@@ -217,6 +223,7 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
+      {/* Period + Download */}
       <div className="flex items-center justify-between">
         <PeriodSelector
           period={period}
@@ -224,10 +231,9 @@ export default function AnalyticsPage() {
           onChange={(p, cp) => { setPeriod(p); setComparePeriod(cp); }}
         />
         <Button
-          variant="outline"
+          className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
           size="sm"
-          className="flex items-center gap-2"
-          onClick={() => exportAnalyticsXlsx(sorted, COLUMNS, tabLabel, totals)}
+          onClick={() => exportAnalyticsXlsx(sorted, COLUMNS, tabLabel, totals, showProduct)}
         >
           <Download className="h-4 w-4" />
           Скачать xlsx
@@ -235,39 +241,50 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          {/* Group header */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+        <table className="w-full text-[13px] border-collapse whitespace-nowrap">
           <thead>
-            <tr>
-              <th className="sticky left-0 z-20 bg-gray-50 px-3 py-1 text-left text-xs font-semibold text-gray-600 border-b border-r" rowSpan={2}>
-                {groupBy === "article" ? "Артикул" : groupBy === "day" ? "Дата" : groupBy === "week" ? "Неделя" : groupBy === "month" ? "Месяц" : groupBy === "store" ? "Магазин" : groupBy === "brand" ? "Бренд" : "Предмет"}
-              </th>
-              {groupSpans.map((gs) => (
+            {/* Group header row */}
+            <tr className="border-b border-gray-200">
+              {showProduct ? (
+                <>
+                  <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[220px]" rowSpan={2}>
+                    Товар
+                  </th>
+                  <th className="sticky left-[220px] z-30 bg-gray-50 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[80px]" rowSpan={2}>
+                    Арт.WB
+                  </th>
+                  <th className="sticky left-[300px] z-30 bg-gray-50 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[100px]" rowSpan={2}>
+                    Арт.пост.
+                  </th>
+                </>
+              ) : (
+                <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[140px]" rowSpan={2}>
+                  {firstColLabel(groupBy)}
+                </th>
+              )}
+              {groupSpans.map((gs, i) => (
                 <th
-                  key={gs.group}
+                  key={i}
                   colSpan={gs.count}
-                  className={cn("px-2 py-1 text-center text-xs font-semibold text-gray-700 border-b border-x", GROUP_COLORS[gs.group])}
+                  className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 border-x border-gray-100"
                 >
                   {gs.group}
                 </th>
               ))}
             </tr>
-            {/* Column headers */}
-            <tr className="border-b">
+            {/* Column header row */}
+            <tr className="border-b border-gray-300 bg-gray-50">
               {COLUMNS.map((col) => (
                 <th
-                  key={col.key}
-                  className={cn(
-                    "px-2 py-1.5 text-right text-xs font-medium text-gray-500 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-b",
-                    GROUP_COLORS[col.group]
-                  )}
+                  key={col.key + col.group}
+                  className="px-2 py-2 text-right text-xs font-medium text-gray-500 cursor-pointer hover:bg-gray-100 border-x border-gray-100"
                   onClick={() => toggleSort(col.key)}
                 >
                   <span className="inline-flex items-center gap-0.5 justify-end">
                     {col.label}
                     {sortKey === col.key && (
-                      sortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                      sortAsc ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
                     )}
                   </span>
                 </th>
@@ -276,37 +293,71 @@ export default function AnalyticsPage() {
           </thead>
           <tbody>
             {!data && (
-              <tr>
-                <td colSpan={COLUMNS.length + 1} className="py-12 text-center text-gray-400">
-                  Загрузка...
-                </td>
-              </tr>
+              <tr><td colSpan={COLUMNS.length + stickyCount} className="py-16 text-center text-gray-400">Загрузка данных...</td></tr>
             )}
             {data && sorted.length === 0 && (
-              <tr>
-                <td colSpan={COLUMNS.length + 1} className="py-12 text-center text-gray-400">
-                  Нет данных за выбранный период
-                </td>
-              </tr>
+              <tr><td colSpan={COLUMNS.length + stickyCount} className="py-16 text-center text-gray-400">Нет данных за выбранный период</td></tr>
             )}
             {sorted.map((row, i) => (
-              <tr key={row.label + i} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-gray-900 whitespace-nowrap border-r max-w-[200px] truncate" title={row.label}>
-                  {row.label || "(пусто)"}
-                </td>
+              <tr key={row.label + i} className="border-b border-gray-100 hover:bg-blue-50/30">
+                {/* Sticky first columns */}
+                {showProduct ? (
+                  <>
+                    {/* Товар: image + name */}
+                    <td className="sticky left-0 z-10 bg-white px-2 py-1.5 border-r border-gray-100">
+                      <div className="flex items-center gap-2 min-w-[200px]">
+                        {row.imageUrl ? (
+                          <img
+                            src={row.imageUrl}
+                            alt=""
+                            className="w-10 h-10 rounded object-cover flex-shrink-0 border border-gray-200"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-gray-100 flex-shrink-0" />
+                        )}
+                        <span className="text-xs text-gray-800 truncate max-w-[160px]" title={row.productName || row.label}>
+                          {row.productName || row.label || `nmId: ${row.nmId}`}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="sticky left-[220px] z-10 bg-white px-2 py-1.5 text-xs text-gray-600 font-mono border-r border-gray-100">
+                      {row.nmId || ""}
+                    </td>
+                    <td className="sticky left-[300px] z-10 bg-white px-2 py-1.5 text-xs text-gray-600 border-r border-gray-100">
+                      {row.supplierArticle || ""}
+                    </td>
+                  </>
+                ) : (
+                  <td className="sticky left-0 z-10 bg-white px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-100 truncate max-w-[200px]" title={row.label}>
+                    {row.label || "(пусто)"}
+                  </td>
+                )}
+
+                {/* Data columns */}
                 {COLUMNS.map((col) => {
-                  const val = Number(row[col.key]) || 0;
-                  const needColor = ["profit", "profitPct", "roi", "grossProfit", "grossProfitPct"].includes(col.key);
+                  const val = Number((row as any)[col.key]) || 0;
+                  const isBadge = col.key === "profitPct" || col.key === "roi";
+
+                  if (isBadge) {
+                    const badgeClass = col.key === "roi" ? roiBadge(val) : profitBadge(val);
+                    return (
+                      <td key={col.key + col.group} className="px-2 py-1.5 text-center">
+                        <span className={cn("inline-block px-2 py-0.5 rounded text-xs font-semibold", badgeClass)}>
+                          {Math.round(val)}%
+                        </span>
+                      </td>
+                    );
+                  }
+
+                  const isProfit = col.key === "profit" || col.key === "grossProfit" || col.key === "profitPerUnit";
+                  const textColor = isProfit
+                    ? val > 0 ? "text-green-700" : val < 0 ? "text-red-600" : ""
+                    : col.neg && val > 0 ? "text-red-600" : "";
+
                   return (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        "px-2 py-1.5 text-right whitespace-nowrap",
-                        needColor && colorClass(val),
-                        col.invert && val !== 0 && "text-red-600",
-                      )}
-                    >
-                      {col.invert && val > 0 ? `-${fmt(val, col.unit)}` : fmt(val, col.unit)}
+                    <td key={col.key + col.group} className={cn("px-2 py-1.5 text-right", textColor)}>
+                      {col.neg && val > 0 ? `-${fmtNum(val, col.unit)}` : fmtNum(val, col.unit)}
                     </td>
                   );
                 })}
@@ -316,22 +367,29 @@ export default function AnalyticsPage() {
           {sorted.length > 0 && (
             <tfoot>
               <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-                <td className="sticky left-0 z-10 bg-gray-50 px-3 py-2 border-r">
+                <td className={cn("sticky left-0 z-10 bg-gray-50 px-3 py-2.5 border-r border-gray-200 text-xs")} colSpan={stickyCount}>
                   Итого ({sorted.length})
                 </td>
                 {COLUMNS.map((col) => {
                   const val = totals[col.key] ?? 0;
-                  const needColor = ["profit", "profitPct", "roi", "grossProfit", "grossProfitPct"].includes(col.key);
+                  const isBadge = col.key === "profitPct" || col.key === "roi";
+                  if (isBadge) {
+                    const badgeClass = col.key === "roi" ? roiBadge(val) : profitBadge(val);
+                    return (
+                      <td key={col.key + col.group} className="px-2 py-2.5 text-center">
+                        <span className={cn("inline-block px-2 py-0.5 rounded text-xs font-semibold", badgeClass)}>
+                          {Math.round(val)}%
+                        </span>
+                      </td>
+                    );
+                  }
+                  const isProfit = col.key === "profit" || col.key === "grossProfit" || col.key === "profitPerUnit";
+                  const textColor = isProfit
+                    ? val > 0 ? "text-green-700" : val < 0 ? "text-red-600" : ""
+                    : col.neg && val > 0 ? "text-red-600" : "";
                   return (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        "px-2 py-2 text-right whitespace-nowrap",
-                        needColor && colorClass(val),
-                        col.invert && val !== 0 && "text-red-600",
-                      )}
-                    >
-                      {col.invert && val > 0 ? `-${fmt(val, col.unit)}` : fmt(val, col.unit)}
+                    <td key={col.key + col.group} className={cn("px-2 py-2.5 text-right", textColor)}>
+                      {col.neg && val > 0 ? `-${fmtNum(val, col.unit)}` : fmtNum(val, col.unit)}
                     </td>
                   );
                 })}
@@ -340,6 +398,12 @@ export default function AnalyticsPage() {
           )}
         </table>
       </div>
+
+      {sorted.length > 0 && (
+        <div className="text-xs text-gray-400 text-right">
+          Показано: {sorted.length} | Страница 1 из 1
+        </div>
+      )}
     </div>
   );
 }
