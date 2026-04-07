@@ -74,8 +74,6 @@ export const syncAllPromotion = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("promotion")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncPromotion.syncPromotion, {
@@ -91,8 +89,6 @@ export const syncAllAnalytics = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("analytics")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncAnalytics.syncAnalytics, {
@@ -108,8 +104,6 @@ export const syncAllContent = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("content")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncContent.syncContent, {
@@ -125,8 +119,6 @@ export const syncAllFeedbacks = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("feedbacks")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncFeedbacks.syncFeedbacks, {
@@ -142,8 +134,6 @@ export const syncAllPrices = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("prices")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncPrices.syncPrices, {
@@ -159,8 +149,6 @@ export const syncAllReturns = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("returns")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncReturns.syncReturns, {
@@ -176,8 +164,6 @@ export const syncAllTariffs = internalAction({
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      const categories = shop.enabledCategories ?? ["statistics", "promotion", "analytics"];
-      if (!categories.includes("tariffs")) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
       await ctx.runAction(internal.sync.syncTariffs.syncTariffs, {

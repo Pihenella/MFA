@@ -59,6 +59,19 @@ export const updateCategories = mutation({
   },
 });
 
+export const enableAllCategoriesForAll = internalMutation({
+  handler: async (ctx) => {
+    const all = [
+      "statistics", "promotion", "analytics",
+      "content", "feedbacks", "prices", "returns", "tariffs",
+    ];
+    const shops = await ctx.db.query("shops").collect();
+    for (const s of shops) {
+      await ctx.db.patch(s._id, { enabledCategories: all });
+    }
+  },
+});
+
 export const getSyncLog = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {

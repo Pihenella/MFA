@@ -9,6 +9,7 @@
  */
 
 import type * as actions from "../actions.js";
+import type * as analytics from "../analytics.js";
 import type * as costs from "../costs.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
@@ -34,6 +35,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   actions: typeof actions;
+  analytics: typeof analytics;
   costs: typeof costs;
   crons: typeof crons;
   dashboard: typeof dashboard;
