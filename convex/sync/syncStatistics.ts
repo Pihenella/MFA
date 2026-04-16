@@ -132,6 +132,7 @@ export const upsertFinancials = internalMutation({
         realizationreportDate: r.create_dt?.slice(0, 10) ?? "",
         docTypeName: String(r.doc_type_name ?? ""),
         supplierOperName: r.supplier_oper_name != null ? String(r.supplier_oper_name) : undefined,
+        bonusTypeName: r.bonus_type_name != null ? String(r.bonus_type_name) : undefined,
       };
       const existing = await ctx.db
         .query("financials")

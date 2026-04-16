@@ -1,3 +1,5 @@
+import { isAdDeduction } from "./metrics";
+
 type FinancialRow = {
   realizationreportId: number;
   dateFrom: string;
@@ -19,6 +21,7 @@ type FinancialRow = {
   storageAmount: number;
   docTypeName: string;
   supplierOperName?: string;
+  bonusTypeName?: string;
   warehouseName: string;
   siteCountry: string;
 };
@@ -168,7 +171,7 @@ export function groupByReportFull(
   rows: FinancialRow[],
   shopName: string,
   costMap: Map<number, number>,
-  campaignsSpent: number,
+  _campaignsSpent: number,
 ): MpfactReportRow[] {
   const map = new Map<number, {
     reportId: number;
@@ -247,15 +250,12 @@ export function groupByReportFull(
     s.penalties += r.penalty;
     s.surcharges += r.additionalPayment;
     const ded = r.deductionAmount || 0;
-    if (ded > 0 && r.nmId === 0 && ded >= 10000) {
+    if (ded > 0 && isAdDeduction(r.bonusTypeName)) {
       s.adDeductions += ded;
     } else {
       s.otherDeductions += ded;
     }
   }
-
-  const reportCount = map.size;
-  const adsPerReport = reportCount > 0 ? campaignsSpent / reportCount : 0;
 
   const result: MpfactReportRow[] = [];
 
@@ -276,8 +276,9 @@ export function groupByReportFull(
 
     const commission = revenueSeller - forPayTotal;
     const grossProfit = revenueSeller - costTotal;
-    // Реклама: максимум из campaigns API (пропорционально) и рекламных удержаний
-    const adsForReport = Math.max(adsPerReport, s.adDeductions);
+    // Реклама: используем только adDeductions из финансового отчёта (они привязаны к периоду).
+    // campaignsSpent из WB campaigns API не привязан к периоду и не используется в P&L.
+    const adsForReport = s.adDeductions;
     const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsForReport + Math.abs(s.otherDeductions) - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses;
     // Налог = 6% от выручки со скидкой WB
@@ -396,7 +397,7 @@ export function groupByPeriodFull(
   rows: FinancialRow[],
   granularity: "day" | "week" | "month",
   costMap: Map<number, number>,
-  campaignsSpent: number,
+  _campaignsSpent: number,
 ): MpfactDetailRow[] {
   const getKey = (dateStr: string): string => {
     if (granularity === "day") return dateStr;
@@ -488,15 +489,12 @@ export function groupByPeriodFull(
     s.penalties += r.penalty;
     s.surcharges += r.additionalPayment;
     const ded = r.deductionAmount || 0;
-    if (ded > 0 && r.nmId === 0 && ded >= 10000) {
+    if (ded > 0 && isAdDeduction(r.bonusTypeName)) {
       s.adDeductions = (s.adDeductions ?? 0) + ded;
     } else {
       s.otherDeductions = (s.otherDeductions ?? 0) + ded;
     }
   }
-
-  const periodCount = map.size;
-  const adsPerPeriod = periodCount > 0 ? campaignsSpent / periodCount : 0;
 
   const result: MpfactDetailRow[] = [];
 
@@ -519,7 +517,8 @@ export function groupByPeriodFull(
     const grossProfit = revenueSeller - costTotal;
     const adDed = s.adDeductions;
     const othDed = s.otherDeductions;
-    const adsForPeriod = Math.max(adsPerPeriod, adDed);
+    // Реклама: только adDeductions из финансового отчёта (привязаны к периоду).
+    const adsForPeriod = adDed;
     const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsForPeriod + Math.abs(othDed) - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses;
     const tax = revenueWbDisc * 0.06;

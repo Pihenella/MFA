@@ -33,7 +33,16 @@ export type Financial = {
   docTypeName: string;
   nmId: number;
   supplierArticle: string;
+  supplierOperName?: string;
+  bonusTypeName?: string;
 };
+
+// Удержание с таким bonus_type_name — это реклама WB Продвижение.
+// Все прочие удержания («Аванс за услугу Баллы за отзывы», штрафы и т.п.) идут в «Прочие удержания».
+// Источник: sample WB API response + соответствие с МП Факт.
+export const AD_BONUS_PREFIX = "Оказание услуг «WB Продвижение»";
+export const isAdDeduction = (bonusTypeName?: string): boolean =>
+  !!bonusTypeName && bonusTypeName.startsWith(AD_BONUS_PREFIX);
 
 export type Cost = {
   nmId: number;
@@ -231,14 +240,15 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // Штрафы
   const penalties = financials.reduce((s, f) => s + (f.penalty || 0), 0);
 
-  // Удержания: разделяем на рекламные (крупные, nmId=0) и прочие
-  // WB включает рекламные списания как "Удержание" в отчёте реализации
+  // Удержания: разделяем по bonus_type_name из WB API.
+  // "Оказание услуг «WB Продвижение»" → реклама.
+  // Всё остальное ("Аванс за услугу «Баллы за отзывы»", штрафы и т.п.) → прочие удержания.
   let adDeductions = 0;
   let otherDeductions = 0;
   for (const f of financials) {
     const d = f.deductionAmount || 0;
     if (d === 0) continue;
-    if (f.nmId === 0 && d >= 10000) {
+    if (isAdDeduction(f.bonusTypeName)) {
       adDeductions += d;
     } else {
       otherDeductions += d;

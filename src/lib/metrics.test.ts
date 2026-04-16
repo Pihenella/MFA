@@ -227,4 +227,108 @@ describe("computeDashboardMetrics — financials-based (МП Факт форму
     expect(result.crToCart).toBeCloseTo(10);
     expect(result.crToOrder).toBeCloseTo(43.33, 1);
   });
+
+  it("classifies WB Продвижение deductions as ads and Баллы за отзывы as other (bonus_type_name)", () => {
+    // Данные взяты из прод WB API для AID Official, неделя 30.03-05.04:
+    // МП Факт: ads=67827, otherDed=46701.6
+    const financials = [
+      makeFinancial({ nmId: 0, deductionAmount: 27075, bonusTypeName: "Оказание услуг «WB Продвижение», документ №291729185", docTypeName: "" }),
+      makeFinancial({ nmId: 0, deductionAmount: 17714.4, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+      makeFinancial({ nmId: 0, deductionAmount: 12883.2, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+      makeFinancial({ nmId: 0, deductionAmount: 16104, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+      makeFinancial({ nmId: 0, deductionAmount: 40752, bonusTypeName: "Оказание услуг «WB Продвижение», документ №291838613", docTypeName: "" }),
+    ];
+    const result = computeDashboardMetrics({ ...emptyInput, financials });
+    expect(result.ads).toBe(67827);
+    expect(result.deductions).toBeCloseTo(46701.6, 2);
+  });
+
+  it("treats deduction without bonus_type_name as 'other' (safe default)", () => {
+    const financials = [
+      makeFinancial({ nmId: 0, deductionAmount: 50000, bonusTypeName: undefined, docTypeName: "" }),
+      makeFinancial({ nmId: 123, deductionAmount: 100, bonusTypeName: undefined, docTypeName: "" }),
+    ];
+    const result = computeDashboardMetrics({ ...emptyInput, financials });
+    expect(result.ads).toBe(0);
+    expect(result.deductions).toBe(50100);
+  });
+
+  // Регрессионные golden-тесты: проверяем что формулы совпадают с МП Факт до рубля.
+  // Данные из xlsx "Детализация по неделям 1-16 Апреля AID Official/Tools" (2026-04).
+  describe("golden МП Факт regressions — week totals from April 2026", () => {
+    it("AID Official, week 06.04-12.04: revenueSeller, forPay, commission, logistics match МП Факт", () => {
+      // Агрегаты недели (без per-row detalization; здесь важны именно формулы)
+      const financials = [
+        // 60 продаж суммарно на 680458.42 (retailPrice) и 470429.98 (retailAmount), forPay 440080.99
+        makeFinancial({ retailPrice: 680458.42, retailAmount: 470429.98, ppvzForPay: 440080.99, nmId: 1, docTypeName: "Продажа" }),
+        // 2 возврата на 31217 (retailPrice) и 21872 (retailAmount), forPay 20053.38
+        makeFinancial({ retailPrice: -31217, retailAmount: -21872, ppvzForPay: -20053.38, nmId: 1, docTypeName: "Возврат" }),
+        // Агрегированные расходы
+        makeFinancial({ deliveryRub: 24029.77, nmId: 0, docTypeName: "" }),
+        makeFinancial({ storageAmount: 4407, nmId: 0, docTypeName: "" }),
+        // Реклама (WB Продвижение)
+        makeFinancial({ nmId: 0, deductionAmount: 56883, bonusTypeName: "Оказание услуг «WB Продвижение»", docTypeName: "" }),
+      ];
+      const result = computeDashboardMetrics({ ...emptyInput, financials });
+      expect(result.revenueSeller).toBeCloseTo(649241.42, 2); // МП Факт
+      expect(result.forPayTotal).toBeCloseTo(420027.61, 2);
+      expect(result.commission).toBeCloseTo(229213.81, 2); // revenueSeller - forPayTotal
+      expect(result.logistics).toBeCloseTo(24029.77, 2);
+      expect(result.storage).toBeCloseTo(4407, 2);
+      expect(result.ads).toBe(56883);
+      expect(result.deductions).toBe(0);
+      // Налог = revenueWbDisc * 6% = (470429.98 - 21872) * 0.06 = 448557.98 * 0.06
+      expect(result.tax).toBeCloseTo(26913.48, 2);
+    });
+
+    it("AID Tools, week 30.03-05.04: ads/other split matches МП Факт (52938 + 20691)", () => {
+      const financials = [
+        makeFinancial({ retailPrice: 468862.06, retailAmount: 327217.6, ppvzForPay: 306181.04, nmId: 1, docTypeName: "Продажа" }),
+        makeFinancial({ retailPrice: -11700, retailAmount: -7973, ppvzForPay: -7607.83, nmId: 1, docTypeName: "Возврат" }),
+        makeFinancial({ deliveryRub: 49121.11, nmId: 0, docTypeName: "" }),
+        makeFinancial({ storageAmount: 2793.32, nmId: 0, docTypeName: "" }),
+        // 2 рекламных удержания
+        makeFinancial({ nmId: 0, deductionAmount: 27561, bonusTypeName: "Оказание услуг «WB Продвижение»", docTypeName: "" }),
+        makeFinancial({ nmId: 0, deductionAmount: 25377, bonusTypeName: "Оказание услуг «WB Продвижение»", docTypeName: "" }),
+        // 1 прочее удержание (Баллы за отзывы)
+        makeFinancial({ nmId: 0, deductionAmount: 20691, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+      ];
+      const result = computeDashboardMetrics({ ...emptyInput, financials });
+      expect(result.revenueSeller).toBeCloseTo(457162.06, 2);
+      expect(result.forPayTotal).toBeCloseTo(298573.21, 2);
+      expect(result.ads).toBe(52938);
+      expect(result.deductions).toBe(20691);
+      expect(result.tax).toBeCloseTo(19154.676, 2); // (327217.6 - 7973) * 0.06
+    });
+
+    it("AID Official, week 30.03-05.04: полный P&L совпадает с МП Факт до рубля", () => {
+      const financials = [
+        makeFinancial({ retailPrice: 367671, retailAmount: 255066, ppvzForPay: 238501.58, nmId: 1, docTypeName: "Продажа" }),
+        // deliveryRub aggregated
+        makeFinancial({ deliveryRub: 13289.95, nmId: 0, docTypeName: "" }),
+        makeFinancial({ storageAmount: 3433.46, nmId: 0, docTypeName: "" }),
+        // Реклама (WB Продвижение): 27075 + 40752 = 67827
+        makeFinancial({ nmId: 0, deductionAmount: 27075, bonusTypeName: "Оказание услуг «WB Продвижение»", docTypeName: "" }),
+        makeFinancial({ nmId: 0, deductionAmount: 40752, bonusTypeName: "Оказание услуг «WB Продвижение»", docTypeName: "" }),
+        // Прочее (Баллы за отзывы): 17714.4 + 12883.2 + 16104 = 46701.6
+        makeFinancial({ nmId: 0, deductionAmount: 17714.4, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+        makeFinancial({ nmId: 0, deductionAmount: 12883.2, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+        makeFinancial({ nmId: 0, deductionAmount: 16104, bonusTypeName: 'Аванс за услугу "Баллы за отзывы"', docTypeName: "" }),
+      ];
+      const result = computeDashboardMetrics({ ...emptyInput, financials });
+      expect(result.revenueSeller).toBeCloseTo(367671, 2);
+      expect(result.commission).toBeCloseTo(129169.42, 2); // 367671 - 238501.58
+      expect(result.logistics).toBeCloseTo(13289.95, 2);
+      expect(result.storage).toBeCloseTo(3433.46, 2);
+      expect(result.ads).toBe(67827);
+      expect(result.deductions).toBeCloseTo(46701.6, 2);
+      expect(result.tax).toBeCloseTo(15303.96, 2); // 255066 * 0.06
+      // profitBeforeTax = grossProfit(=revenueSeller, т.к. cogs=0) - mpExpenses
+      // mpExpenses = 129169.42 + 13289.95 + 3433.46 + 67827 + 46701.6 - 0 = 260421.43
+      // profitBeforeTax = 367671 - 260421.43 = 107249.57
+      // profit = 107249.57 - 15303.96 = 91945.61 — сверяем не profit (зависит от COGS = -121438 которого тут нет),
+      // а что сами slagaemie mpExpenses правильные:
+      expect(result.mpExpenses).toBeCloseTo(260421.43, 2);
+    });
+  });
 });

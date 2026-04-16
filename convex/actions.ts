@@ -46,14 +46,19 @@ export const triggerSync = action({
   },
 });
 
-// Ресинк только финансов (для ручного вызова после очистки данных)
+// Ресинк только финансов (для ручного вызова после очистки данных).
+// Запускается через scheduler, чтобы не упереться в 10-мин timeout action
+// (90д финансовых отчётов WB = 5-6 страниц × 61с пагинации).
 export const resyncFinancials = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
     const shops = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
-    await ctx.runAction(internal.sync.syncStatistics.syncFinancials, { shopId, apiKey: shop.apiKey });
+    await ctx.scheduler.runAfter(0, internal.sync.syncStatistics.syncFinancials, {
+      shopId,
+      apiKey: shop.apiKey,
+    });
   },
 });
 

@@ -81,6 +81,7 @@ export default defineSchema({
     realizationreportDate: v.string(),
     docTypeName: v.string(),
     supplierOperName: v.optional(v.string()),
+    bonusTypeName: v.optional(v.string()),
   }).index("by_shop", ["shopId"])
     .index("by_shop_report", ["shopId", "realizationreportId"])
     .index("by_shop_date", ["shopId", "dateFrom"])
