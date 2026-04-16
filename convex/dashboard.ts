@@ -66,29 +66,38 @@ export const getFinancials = query({
     shopId: v.optional(v.id("shops")),
     dateFrom: v.string(),
     dateTo: v.string(),
+    // Если true — фильтр по rrDt (дата операции). Для графика «Пульс» и для дневных срезов.
+    // По умолчанию (false) — фильтр по периоду еженедельного отчёта WB
+    // (dateFrom >= queryStart AND dateTo <= queryEnd), как в МПФакт.
+    // Частичные недели на границах диапазона исключаются.
+    byOperationDate: v.optional(v.boolean()),
   },
-  handler: async (ctx, { shopId, dateFrom, dateTo }) => {
-    // Фильтруем по rrDt — дате фактической операции (как МП Факт),
-    // а не по dateFrom (начало недельного отчёта WB)
-    if (shopId) {
-      return await ctx.db
-        .query("financials")
-        .withIndex("by_shop_rrdt", (q) =>
-          q.eq("shopId", shopId).gte("rrDt", dateFrom).lte("rrDt", dateTo)
-        )
-        .collect();
-    }
-    const shops = await ctx.db.query("shops").collect();
-    const results = await Promise.all(
-      shops.map((s) =>
-        ctx.db
+  handler: async (ctx, { shopId, dateFrom, dateTo, byOperationDate }) => {
+    const filterRows = async (sid: typeof shopId) => {
+      if (byOperationDate) {
+        return await ctx.db
           .query("financials")
           .withIndex("by_shop_rrdt", (q) =>
-            q.eq("shopId", s._id).gte("rrDt", dateFrom).lte("rrDt", dateTo)
+            q.eq("shopId", sid!).gte("rrDt", dateFrom).lte("rrDt", dateTo)
           )
-          .collect()
-      )
-    );
+          .collect();
+      }
+      // Фильтр по периоду отчёта (как МПФакт): dateFrom >= queryStart AND dateTo <= queryEnd.
+      // Индекс by_shop_date даёт dateFrom; dateTo фильтруем в памяти.
+      const rows = await ctx.db
+        .query("financials")
+        .withIndex("by_shop_date", (q) =>
+          q.eq("shopId", sid!).gte("dateFrom", dateFrom).lte("dateFrom", dateTo)
+        )
+        .collect();
+      return rows.filter((r) => r.dateTo <= dateTo);
+    };
+
+    if (shopId) {
+      return await filterRows(shopId);
+    }
+    const shops = await ctx.db.query("shops").collect();
+    const results = await Promise.all(shops.map((s) => filterRows(s._id)));
     return results.flat();
   },
 });

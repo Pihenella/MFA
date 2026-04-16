@@ -14,10 +14,13 @@ export function usePulseData(period: Period, shopId?: Id<"shops">, granularity: 
     dateTo: period.to,
   }) ?? [];
 
+  // Пульс показывает дневной/недельный/месячный срез — нужна rrDt-based фильтрация,
+  // чтобы каждая операция попадала в свой день. Дашборд использует недельный фильтр как МПФакт.
   const financials = useQuery(api.dashboard.getFinancials, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
+    byOperationDate: true,
   }) ?? [];
 
   const costs = useQuery(api.dashboard.getCosts, { shopId }) ?? [];
