@@ -66,24 +66,23 @@ export const getFinancials = query({
     shopId: v.optional(v.id("shops")),
     dateFrom: v.string(),
     dateTo: v.string(),
-    // Если true — фильтр по rrDt (дата операции). Для графика «Пульс» и для дневных срезов.
-    // По умолчанию (false) — фильтр по периоду еженедельного отчёта WB
-    // (dateFrom >= queryStart AND dateTo <= queryEnd), как в МПФакт.
-    // Частичные недели на границах диапазона исключаются.
+    // Если true — принудительно фильтр по rrDt (дата операции). Для /pulse и дневных графиков.
+    // По умолчанию (false) — гибрид:
+    //   1) пробуем фильтр по периоду отчёта WB (dateFrom >= queryStart AND dateTo <= queryEnd) — как МПФакт
+    //   2) если ни один отчёт не поместился целиком (single-day, partial-week, «свежие даты») —
+    //      fallback на rrDt-фильтр чтобы показать реальные операции за выбранные дни
     byOperationDate: v.optional(v.boolean()),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo, byOperationDate }) => {
-    const filterRows = async (sid: typeof shopId) => {
-      if (byOperationDate) {
-        return await ctx.db
-          .query("financials")
-          .withIndex("by_shop_rrdt", (q) =>
-            q.eq("shopId", sid!).gte("rrDt", dateFrom).lte("rrDt", dateTo)
-          )
-          .collect();
-      }
-      // Фильтр по периоду отчёта (как МПФакт): dateFrom >= queryStart AND dateTo <= queryEnd.
-      // Индекс by_shop_date даёт dateFrom; dateTo фильтруем в памяти.
+    const byRrDt = async (sid: typeof shopId) =>
+      ctx.db
+        .query("financials")
+        .withIndex("by_shop_rrdt", (q) =>
+          q.eq("shopId", sid!).gte("rrDt", dateFrom).lte("rrDt", dateTo)
+        )
+        .collect();
+
+    const byReportPeriod = async (sid: typeof shopId) => {
       const rows = await ctx.db
         .query("financials")
         .withIndex("by_shop_date", (q) =>
@@ -93,11 +92,18 @@ export const getFinancials = query({
       return rows.filter((r) => r.dateTo <= dateTo);
     };
 
-    if (shopId) {
-      return await filterRows(shopId);
-    }
+    const forShop = async (sid: typeof shopId) => {
+      if (byOperationDate) return await byRrDt(sid);
+      const reportRows = await byReportPeriod(sid);
+      if (reportRows.length > 0) return reportRows;
+      // Полностью ни одна недельная выгрузка не поместилась в диапазон —
+      // показываем дневной срез по rrDt (например, запрос на 1 день)
+      return await byRrDt(sid);
+    };
+
+    if (shopId) return await forShop(shopId);
     const shops = await ctx.db.query("shops").collect();
-    const results = await Promise.all(shops.map((s) => filterRows(s._id)));
+    const results = await Promise.all(shops.map((s) => forShop(s._id)));
     return results.flat();
   },
 });
