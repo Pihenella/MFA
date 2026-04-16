@@ -90,15 +90,17 @@ export const syncAllPromotion = internalAction({
 
 export const syncAllAnalytics = internalAction({
   handler: async (ctx) => {
+    // Аналогично syncAllFinancials — seller-analytics-api может долго паузиться
+    // на 429 (до 4 retry × 60с+) + пагинация 30с/стр. Два шопа подряд упирались
+    // в 10-мин timeout Convex action. Разносим по отдельным action через scheduler.
     const shops = await ctx.runQuery(internal.shops.listInternal);
-    let first = true;
+    let delay = 0;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
-      first = false;
-      await ctx.runAction(internal.sync.syncAnalytics.syncAnalytics, {
+      await ctx.scheduler.runAfter(delay, internal.sync.syncAnalytics.syncAnalytics, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
+      delay += 8 * 60 * 1000;
     }
   },
 });
