@@ -55,15 +55,20 @@ export const syncAllStocks = internalAction({
 
 export const syncAllFinancials = internalAction({
   handler: async (ctx) => {
+    // Финансовый отчёт для одного магазина может идти 5-6 минут (WB Statistics
+    // API лимит 1 req/min × 5-6 страниц пагинации по 1000 rrdId). Два магазина
+    // подряд превышают 10-минутный timeout Convex action — второй шоп обрезается
+    // до первой записи в БД. Планируем каждый шоп отдельным action через
+    // scheduler.runAfter, чтобы у каждого был свой 10-минутный бюджет.
     const shops = await ctx.runQuery(internal.shops.listInternal);
-    let first = true;
+    let delay = 0;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
-      first = false;
-      await ctx.runAction(internal.sync.syncStatistics.syncFinancials, {
+      await ctx.scheduler.runAfter(delay, internal.sync.syncStatistics.syncFinancials, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
+      // Разнос по 8 минут — запас над 6-минутным синком одного шопа.
+      delay += 8 * 60 * 1000;
     }
   },
 });
