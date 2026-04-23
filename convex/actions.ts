@@ -62,6 +62,21 @@ export const resyncFinancials = action({
   },
 });
 
+// Ресинк только orders. Вызывается при пропусках заказов за неделю
+// (WB statistics endpoint 1 req/min, 90д = один запрос).
+export const resyncOrders = action({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
+    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shop = shops.find((s) => s._id === shopId);
+    if (!shop) throw new Error("Shop not found");
+    await ctx.scheduler.runAfter(0, internal.sync.syncStatistics.syncOrders, {
+      shopId,
+      apiKey: shop.apiKey,
+    });
+  },
+});
+
 // Debug: получить сырые поля из WB API (временный)
 export const debugWbFields = action({
   args: { shopId: v.id("shops") },
