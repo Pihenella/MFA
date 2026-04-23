@@ -210,7 +210,7 @@ export const getSalesAnalytics = query({
         }
       }
 
-      const isSale = f.docTypeName === "Продажа" && (f.retailAmount > 0 || f.nmId > 0);
+      const isSale = f.docTypeName === "Продажа" && (f.retailAmount > 0 || (f.retailPrice ?? 0) > 0);
       const isReturn = f.docTypeName === "Возврат" && f.nmId > 0;
 
       if (isSale) {

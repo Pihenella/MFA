@@ -228,7 +228,7 @@ export function groupByReportFull(
     const s = map.get(r.realizationreportId)!;
     s.nmIds.add(r.nmId);
 
-    const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || r.nmId > 0);
+    const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || (r.retailPrice ?? 0) > 0);
     const isReturn = r.docTypeName === "Возврат" && r.nmId > 0;
 
     if (isSale) {
@@ -467,7 +467,7 @@ export function groupByPeriodFull(
     if (opDate < s.firstDate) s.firstDate = opDate;
     s.nmIds.add(r.nmId);
 
-    const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || r.nmId > 0);
+    const isSale = r.docTypeName === "Продажа" && (r.retailAmount > 0 || (r.retailPrice ?? 0) > 0);
     const isReturn = r.docTypeName === "Возврат" && r.nmId > 0;
 
     if (isSale) {

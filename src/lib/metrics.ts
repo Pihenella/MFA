@@ -168,7 +168,7 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   // ══════════════════════════════════════════════════════════════
 
   // Фильтруем фейковые "Продажа" записи (Возмещения ПВЗ с nmId=0 и retailAmount=0)
-  const salesFin = financials.filter((f) => f.docTypeName === "Продажа" && (f.retailAmount > 0 || f.nmId > 0));
+  const salesFin = financials.filter((f) => f.docTypeName === "Продажа" && (f.retailAmount > 0 || (f.retailPrice ?? 0) > 0));
   const returnsFin = financials.filter((f) => f.docTypeName === "Возврат" && f.nmId > 0);
 
   // ── Продажи и возвраты (цена продавца = retailPrice, со скидкой WB = retailAmount) ──
