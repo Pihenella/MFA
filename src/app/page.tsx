@@ -128,6 +128,7 @@ export default function DashboardPage() {
         <MetricCard label="Себестоимость, %" value={-mNow.cogsPercent} prevValue={-mPrev.cogsPercent} delta={pctDelta(mNow.cogsPercent, mPrev.cogsPercent)} unit="%" invertColors />
 
         {/* Строка 4 */}
+        <MetricCard label="Средний чек, руб" value={mNow.avgCheck} prevValue={mPrev.avgCheck} delta={pctDelta(mNow.avgCheck, mPrev.avgCheck)} unit="₽" />
         <MetricCard label="Средняя себестоимость" value={-mNow.avgCost} prevValue={-mPrev.avgCost} delta={pctDelta(mNow.avgCost, mPrev.avgCost)} unit="₽" invertColors />
         <MetricCard label="Валовая прибыль, руб" value={mNow.grossProfit} prevValue={mPrev.grossProfit} delta={pctDelta(mNow.grossProfit, mPrev.grossProfit)} unit="₽" />
         <MetricCard label="Валовая прибыль, %" value={mNow.grossProfitPercent} prevValue={mPrev.grossProfitPercent} delta={pctDelta(mNow.grossProfitPercent, mPrev.grossProfitPercent)} unit="%" />
@@ -150,7 +151,7 @@ export default function DashboardPage() {
 
         {/* Строка 2 */}
         <MetricCard label="Хранение, %" value={-mNow.storagePercent} prevValue={-mPrev.storagePercent} delta={pctDelta(mNow.storagePercent, mPrev.storagePercent)} unit="%" invertColors />
-        <MetricCard label="Доплаты, руб" value={-mNow.compensation} prevValue={-mPrev.compensation} delta={pctDelta(mNow.compensation, mPrev.compensation)} unit="₽" invertColors />
+        <MetricCard label="Компенсации, руб" value={-mNow.compensation} prevValue={-mPrev.compensation} delta={pctDelta(mNow.compensation, mPrev.compensation)} unit="₽" invertColors />
         <MetricCard label="Платная приемка, руб" value={-mNow.acceptance} prevValue={-mPrev.acceptance} delta={pctDelta(mNow.acceptance, mPrev.acceptance)} unit="₽" invertColors />
         <MetricCard label="Штрафы, руб" value={-mNow.penalties} prevValue={-mPrev.penalties} delta={pctDelta(mNow.penalties, mPrev.penalties)} unit="₽" invertColors />
         <MetricCard label="Штрафы, %" value={-mNow.penaltiesPercent} prevValue={-mPrev.penaltiesPercent} delta={pctDelta(mNow.penaltiesPercent, mPrev.penaltiesPercent)} unit="%" invertColors />
@@ -158,8 +159,7 @@ export default function DashboardPage() {
         {/* Строка 3 */}
         <MetricCard label="Реклама, руб" value={-mNow.ads} prevValue={-mPrev.ads} delta={pctDelta(mNow.ads, mPrev.ads)} unit="₽" invertColors />
         <MetricCard label="Реклама, %" value={-mNow.adsPercent} prevValue={-mPrev.adsPercent} delta={pctDelta(mNow.adsPercent, mPrev.adsPercent)} unit="%" invertColors />
-        <MetricCard label="Прочие удержания, руб" value={-mNow.deductions} prevValue={-mPrev.deductions} delta={pctDelta(mNow.deductions, mPrev.deductions)} unit="₽" invertColors />
-        <MetricCard label="Прочие начисления, руб" value={0} prevValue={0} delta={0} unit="₽" />
+        <MetricCard label="Прочие услуги, руб" value={-mNow.deductions} prevValue={-mPrev.deductions} delta={pctDelta(mNow.deductions, mPrev.deductions)} unit="₽" invertColors />
         <MetricCard label="Расходы МП, руб" value={-mNow.mpExpenses} prevValue={-mPrev.mpExpenses} delta={pctDelta(mNow.mpExpenses, mPrev.mpExpenses)} unit="₽" invertColors />
 
         {/* Строка 4 */}

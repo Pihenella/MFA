@@ -2,7 +2,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,7 +177,39 @@ function WideTable<T extends Record<string, unknown>>({
   rowKey: (row: T, i: number) => string | number;
   stickyCount: number;
 }) {
-  const stickyWidths = [0, 150, 310];
+  // Измеряем реальные ширины sticky-колонок и считаем накопленный left-offset.
+  // Раньше offsets были захардкожены [0, 150, 310] — sticky-колонки накладывались
+  // друг на друга при прокрутке и накрывали следующие колонки (включая «Прибыль»).
+  const headerRefs = useRef<Array<HTMLTableCellElement | null>>([]);
+  const [stickyOffsets, setStickyOffsets] = useState<number[]>(() =>
+    Array(stickyCount).fill(0),
+  );
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const offsets: number[] = [];
+      let acc = 0;
+      for (let i = 0; i < stickyCount; i++) {
+        offsets.push(acc);
+        const el = headerRefs.current[i];
+        if (el) acc += el.getBoundingClientRect().width;
+      }
+      setStickyOffsets((prev) =>
+        prev.length === offsets.length && prev.every((v, i) => v === offsets[i])
+          ? prev
+          : offsets,
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    headerRefs.current.slice(0, stickyCount).forEach((el) => el && ro.observe(el));
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [stickyCount, columns.length, data.length]);
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto relative">
       <table className="text-sm border-collapse whitespace-nowrap">
@@ -186,12 +218,13 @@ function WideTable<T extends Record<string, unknown>>({
             {columns.map((col, i) => (
               <th
                 key={String(col.key)}
+                ref={(el) => { if (i < stickyCount) headerRefs.current[i] = el; }}
                 className={`p-3 ${col.type === "text" ? "text-left" : "text-right"} ${
-                  i < stickyCount ? "sticky bg-gray-50 z-10" : ""
+                  i < stickyCount ? "sticky bg-gray-50 z-20" : ""
                 }`}
                 style={
                   i < stickyCount
-                    ? { left: `${stickyWidths[i] ?? i * 150}px` }
+                    ? { left: `${stickyOffsets[i] ?? 0}px` }
                     : undefined
                 }
               >
@@ -211,7 +244,7 @@ function WideTable<T extends Record<string, unknown>>({
                   }`}
                   style={
                     i < stickyCount
-                      ? { left: `${stickyWidths[i] ?? i * 150}px` }
+                      ? { left: `${stickyOffsets[i] ?? 0}px` }
                       : undefined
                   }
                 >

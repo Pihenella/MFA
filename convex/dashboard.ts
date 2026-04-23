@@ -166,45 +166,36 @@ export const getNmReports = query({
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
     // NM Reports хранятся агрегированно за запрошенный период.
-    // Фильтруем по periodStart === dateFrom, чтобы вернуть данные только за нужный период.
-    const filterByPeriod = (rows: any[]) => {
-      if (!dateFrom) return rows;
-      return rows.filter((r) => r.periodStart === dateFrom && (!dateTo || r.periodEnd === dateTo));
+    // Возвращаем все записи, чей агрегатный период полностью покрыт [dateFrom, dateTo].
+    // Если за один nmId есть несколько таких записей — берём с самым свежим periodEnd
+    // (актуально при пересинке за разные диапазоны: 7д/30д/произвольный).
+    // Без EXACT-match по periodStart — иначе на нестандартных диапазонах (например 01-23.04)
+    // в БД нет записи с точно такими датами и дашборд показывает нули.
+    const collectFor = async (sid: typeof shopId) => {
+      const all = await ctx.db
+        .query("nmReports")
+        .withIndex("by_shop", (q) => q.eq("shopId", sid!))
+        .collect();
+      if (!dateFrom) return all;
+      const inRange = all.filter((r) => {
+        if (r.periodStart < dateFrom) return false;
+        if (dateTo && r.periodEnd > dateTo) return false;
+        return true;
+      });
+      const byNm = new Map<number, typeof inRange[number]>();
+      for (const r of inRange) {
+        const prev = byNm.get(r.nmId);
+        if (!prev || (r.periodEnd ?? "") > (prev.periodEnd ?? "")) {
+          byNm.set(r.nmId, r);
+        }
+      }
+      return [...byNm.values()];
     };
 
-    if (shopId) {
-      if (dateFrom) {
-        const rows = await ctx.db
-          .query("nmReports")
-          .withIndex("by_shop_period", (q) =>
-            q.eq("shopId", shopId).eq("periodStart", dateFrom)
-          )
-          .collect();
-        return filterByPeriod(rows);
-      }
-      return await ctx.db
-        .query("nmReports")
-        .withIndex("by_shop", (q) => q.eq("shopId", shopId))
-        .collect();
-    }
+    if (shopId) return await collectFor(shopId);
     const shops = await ctx.db.query("shops").collect();
-    const results = await Promise.all(
-      shops.map((s) => {
-        if (dateFrom) {
-          return ctx.db
-            .query("nmReports")
-            .withIndex("by_shop_period", (q) =>
-              q.eq("shopId", s._id).eq("periodStart", dateFrom)
-            )
-            .collect();
-        }
-        return ctx.db
-          .query("nmReports")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
-          .collect();
-      })
-    );
-    return filterByPeriod(results.flat());
+    const results = await Promise.all(shops.map((s) => collectFor(s._id)));
+    return results.flat();
   },
 });
 
