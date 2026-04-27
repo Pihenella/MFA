@@ -1,8 +1,8 @@
 "use node";
 import { internalAction } from "../_generated/server";
-import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import { sendEmailViaResend } from "./resend";
+import { checkAndRecordEmailRef } from "../lib/emailRefs";
 import {
   renderVerifyEmail,
   renderApprovedEmail,
@@ -15,7 +15,7 @@ import {
 export const sendVerify = internalAction({
   args: { email: v.string(), name: v.string(), verifyUrl: v.string() },
   handler: async (ctx, { email, name, verifyUrl }) => {
-    await ctx.runMutation(internal.email.rateLimit.checkAndRecord, {
+    await ctx.runMutation(checkAndRecordEmailRef, {
       email,
       kind: "verify",
     });
@@ -27,7 +27,7 @@ export const sendVerify = internalAction({
 export const sendApproved = internalAction({
   args: { email: v.string(), name: v.string(), loginUrl: v.string() },
   handler: async (ctx, { email, name, loginUrl }) => {
-    await ctx.runMutation(internal.email.rateLimit.checkAndRecord, {
+    await ctx.runMutation(checkAndRecordEmailRef, {
       email,
       kind: "approved",
     });
@@ -44,7 +44,7 @@ export const sendRejected = internalAction({
     supportContact: v.string(),
   },
   handler: async (ctx, { email, name, reason, supportContact }) => {
-    await ctx.runMutation(internal.email.rateLimit.checkAndRecord, {
+    await ctx.runMutation(checkAndRecordEmailRef, {
       email,
       kind: "rejected",
     });
@@ -56,7 +56,7 @@ export const sendRejected = internalAction({
 export const sendReset = internalAction({
   args: { email: v.string(), name: v.string(), resetUrl: v.string() },
   handler: async (ctx, { email, name, resetUrl }) => {
-    await ctx.runMutation(internal.email.rateLimit.checkAndRecord, {
+    await ctx.runMutation(checkAndRecordEmailRef, {
       email,
       kind: "reset",
     });
@@ -73,7 +73,7 @@ export const sendTeamInvite = internalAction({
     acceptUrl: v.string(),
   },
   handler: async (ctx, { email, inviterName, orgName, acceptUrl }) => {
-    await ctx.runMutation(internal.email.rateLimit.checkAndRecord, {
+    await ctx.runMutation(checkAndRecordEmailRef, {
       email,
       kind: "teamInvite",
     });
@@ -90,7 +90,7 @@ export const sendInviteAccepted = internalAction({
     orgName: v.string(),
   },
   handler: async (ctx, { email, ownerName, inviteeName, orgName }) => {
-    await ctx.runMutation(internal.email.rateLimit.checkAndRecord, {
+    await ctx.runMutation(checkAndRecordEmailRef, {
       email,
       kind: "inviteAccepted",
     });

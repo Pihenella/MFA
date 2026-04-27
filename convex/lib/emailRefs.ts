@@ -1,8 +1,24 @@
 // Pre-resolved string refs обходят TS2589 (deep `internal` type instantiation).
 // Convex принимает строки формата "<module>:<func>" для модулей в подпапках.
-// Сигнатуры здесь должны соответствовать args в convex/email/actions.ts.
+// Сигнатуры здесь должны соответствовать args в convex/email/*.ts.
 
 import type { FunctionReference } from "convex/server";
+
+export const checkAndRecordEmailRef =
+  "email/rateLimit:checkAndRecord" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    {
+      email: string;
+      kind:
+        | "verify"
+        | "reset"
+        | "approved"
+        | "rejected"
+        | "teamInvite"
+        | "inviteAccepted";
+    }
+  >;
 
 export const sendVerifyRef = "email/actions:sendVerify" as unknown as FunctionReference<
   "action",

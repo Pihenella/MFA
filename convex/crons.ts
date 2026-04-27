@@ -43,4 +43,12 @@ crons.cron("sync tariffs",   "48 * * * *", ref("syncAllTariffs"), {});
 // Минута 55: обновить lastSyncAt
 crons.cron("update lastSync","55 * * * *", ref("updateAllLastSync"), {});
 
+// Истекание старых invites — раз в день в 03:00 UTC
+const expireInvitesRef = "org/invites:expireOldInvites" as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  Record<string, never>
+>;
+crons.daily("expire old invites", { hourUTC: 3, minuteUTC: 0 }, expireInvitesRef);
+
 export default crons;
