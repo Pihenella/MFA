@@ -1,8 +1,10 @@
 "use client";
-import { shopsListRef, shopsGetSyncLogRef, shopsAddRef, shopsRemoveRef, shopsUpdateCategoriesRef, triggerSyncRef } from "@/lib/convex-refs";
+import { shopsListMineRef, shopsGetSyncLogRef, shopsAddRef, shopsRemoveRef, shopsUpdateCategoriesRef, triggerSyncRef } from "@/lib/convex-refs";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -135,24 +137,35 @@ function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current:
   );
 }
 
-export default function SettingsPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+function SettingsPageInner() {
+  const search = useSearchParams();
+  const initialMarketplace = (search.get("marketplace") ?? "wb") as "wb" | "ozon";
+  const shops = useQuery(shopsListMineRef) ?? [];
+  const currentOrg = useCurrentOrg();
   const addShop = useMutation(shopsAddRef);
   const removeShop = useMutation(shopsRemoveRef);
   const triggerSync = useAction(triggerSyncRef);
 
+  const [marketplace, setMarketplace] = useState<"wb" | "ozon">(initialMarketplace);
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [ozonClientId, setOzonClientId] = useState("");
   const [syncing, setSyncing] = useState<Id<"shops"> | null>(null);
   const [syncScheduled, setSyncScheduled] = useState<Id<"shops"> | null>(null);
 
   const handleAdd = async () => {
-    if (!name || !apiKey) return;
-    // TODO MFA-A.2: получать orgId из текущей session, marketplace — из UI выбора.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await addShop({ name, apiKey } as any);
+    if (!name || !apiKey || !currentOrg) return;
+    if (marketplace === "ozon" && !ozonClientId) return;
+    await addShop({
+      orgId: currentOrg.orgId,
+      marketplace,
+      name,
+      apiKey,
+      ozonClientId: marketplace === "ozon" ? ozonClientId : undefined,
+    });
     setName("");
     setApiKey("");
+    setOzonClientId("");
   };
 
   const handleSync = async (shopId: Id<"shops">) => {
@@ -176,22 +189,44 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <Label>Название</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Мой магазин WB" />
+            <Label>Маркетплейс</Label>
+            <select
+              value={marketplace}
+              onChange={(e) => setMarketplace(e.target.value as "wb" | "ozon")}
+              className="border rounded-md px-3 py-2 text-sm w-full"
+            >
+              <option value="wb">Wildberries</option>
+              <option value="ozon">Ozon</option>
+            </select>
           </div>
           <div className="space-y-1">
-            <Label>API ключ Wildberries (все разрешения)</Label>
+            <Label>Название</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={marketplace === "wb" ? "Мой магазин WB" : "Мой магазин Ozon"} />
+          </div>
+          {marketplace === "ozon" && (
+            <div className="space-y-1">
+              <Label>Ozon Client ID</Label>
+              <Input value={ozonClientId} onChange={(e) => setOzonClientId(e.target.value)} placeholder="123456" />
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label>{marketplace === "wb" ? "API ключ Wildberries (все разрешения)" : "Ozon API key"}</Label>
             <Input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="eyJhb..." type="password" />
           </div>
           <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-md p-2.5">
             <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
             <span>
-              Создайте один ключ со всеми разрешениями в{" "}
-              <span className="font-medium">ЛК WB &rarr; Настройки &rarr; Доступ к API</span>.
-              После добавления магазина выберите нужные категории данных ниже.
+              {marketplace === "wb" ? (
+                <>Создайте один ключ со всеми разрешениями в{" "}
+                <span className="font-medium">ЛК WB &rarr; Настройки &rarr; Доступ к API</span>.
+                После добавления магазина выберите нужные категории данных ниже.</>
+              ) : (
+                <>Получите Client ID и API key в{" "}
+                <span className="font-medium">ЛК Ozon Seller &rarr; Настройки &rarr; API</span>.</>
+              )}
             </span>
           </div>
-          <Button onClick={handleAdd} className="bg-violet-600 hover:bg-violet-700">
+          <Button onClick={handleAdd} disabled={!currentOrg || !name || !apiKey} className="bg-violet-600 hover:bg-violet-700">
             Добавить
           </Button>
         </CardContent>
@@ -247,5 +282,13 @@ export default function SettingsPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsPageInner />
+    </Suspense>
   );
 }
