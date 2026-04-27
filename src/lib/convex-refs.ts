@@ -81,6 +81,16 @@ export const usersCurrentRef = "users:current" as unknown as Q<
   CurrentUser | null
 >;
 
+// ───────────────── auth
+export const verifyEmailRef = "auth/verifyEmail:verifyEmail" as unknown as Mut<
+  { token: string },
+  { ok: true; alreadyVerified: boolean }
+>;
+export const forgotPasswordRef = "auth/forgotPassword:forgotPassword" as unknown as Act<
+  { email: string },
+  { ok: true }
+>;
+
 // ───────────────── dashboard
 type DateArgs = { shopId?: Id<"shops">; dateFrom: string; dateTo: string };
 export const getOrdersRef = "dashboard:getOrders" as unknown as Q<
