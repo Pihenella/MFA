@@ -55,6 +55,27 @@ export const shopsUpdateCategoriesRef =
     enabledCategories: string[];
   }>;
 
+// ───────────────── users
+export type CurrentUser = {
+  _id: Id<"users">;
+  email: string;
+  name: string;
+  phone: string;
+  businessName: string;
+  shopsCountWB: number;
+  shopsCountOzon: number;
+  skuCount: number;
+  status: "pending" | "approved" | "rejected";
+  isSystemAdmin: boolean;
+  emailVerifiedAt: number | null;
+  createdAt: number;
+};
+
+export const usersCurrentRef = "users:current" as unknown as Q<
+  Record<string, never>,
+  CurrentUser | null
+>;
+
 // ───────────────── dashboard
 type DateArgs = { shopId?: Id<"shops">; dateFrom: string; dateTo: string };
 export const getOrdersRef = "dashboard:getOrders" as unknown as Q<

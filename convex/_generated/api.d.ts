@@ -42,6 +42,7 @@ import type * as sync_syncReturns from "../sync/syncReturns.js";
 import type * as sync_syncStatistics from "../sync/syncStatistics.js";
 import type * as sync_syncTariffs from "../sync/syncTariffs.js";
 import type * as syncAll from "../syncAll.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   "sync/syncStatistics": typeof sync_syncStatistics;
   "sync/syncTariffs": typeof sync_syncTariffs;
   syncAll: typeof syncAll;
+  users: typeof users;
 }>;
 
 /**
