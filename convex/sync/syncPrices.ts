@@ -1,8 +1,7 @@
-// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
 import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import { upsertPricesRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertPrices = internalMutation({
   args: { shopId: v.id("shops"), prices: v.array(v.any()) },
@@ -51,16 +50,16 @@ export const syncPrices = internalAction({
         totalCount += goods.length;
         const batches = chunk(goods, BATCH_SIZE);
         for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncPrices.upsertPrices, { shopId, prices: batch });
+          await ctx.runMutation(upsertPricesRef, { shopId, prices: batch });
         }
         if (goods.length < 1000) break;
         offset += goods.length;
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "prices", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "prices", status: "error" as const, error: e.message,
       });
     }

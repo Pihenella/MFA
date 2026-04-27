@@ -1,8 +1,7 @@
-// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
 import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import { upsertFeedbacksRef, upsertQuestionsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertFeedbacks = internalMutation({
   args: { shopId: v.id("shops"), feedbacks: v.array(v.any()) },
@@ -81,7 +80,7 @@ export const syncFeedbacks = internalAction({
         totalCount += feedbacks.length;
         const batches = chunk(feedbacks, BATCH_SIZE);
         for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncFeedbacks.upsertFeedbacks, { shopId, feedbacks: batch });
+          await ctx.runMutation(upsertFeedbacksRef, { shopId, feedbacks: batch });
         }
         if (feedbacks.length < 5000) break;
         skip += feedbacks.length;
@@ -98,15 +97,15 @@ export const syncFeedbacks = internalAction({
           totalCount += answered.length;
           const batches = chunk(answered, BATCH_SIZE);
           for (const batch of batches) {
-            await ctx.runMutation(internal.sync.syncFeedbacks.upsertFeedbacks, { shopId, feedbacks: batch });
+            await ctx.runMutation(upsertFeedbacksRef, { shopId, feedbacks: batch });
           }
         }
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "feedbacks", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "feedbacks", status: "error" as const, error: e.message,
       });
     }
@@ -125,7 +124,7 @@ export const syncFeedbacks = internalAction({
         totalCount += questions.length;
         const batches = chunk(questions, BATCH_SIZE);
         for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncFeedbacks.upsertQuestions, { shopId, questions: batch });
+          await ctx.runMutation(upsertQuestionsRef, { shopId, questions: batch });
         }
       }
       // Answered questions
@@ -140,15 +139,15 @@ export const syncFeedbacks = internalAction({
           totalCount += answered.length;
           const batches = chunk(answered, BATCH_SIZE);
           for (const batch of batches) {
-            await ctx.runMutation(internal.sync.syncFeedbacks.upsertQuestions, { shopId, questions: batch });
+            await ctx.runMutation(upsertQuestionsRef, { shopId, questions: batch });
           }
         }
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "questions", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "questions", status: "error" as const, error: e.message,
       });
     }

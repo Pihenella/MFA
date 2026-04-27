@@ -1,8 +1,7 @@
-// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
 import { chunk, BATCH_SIZE } from "./helpers";
+import { upsertNmReportsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertNmReports = internalMutation({
   args: { shopId: v.id("shops"), reports: v.array(v.any()) },
@@ -150,13 +149,13 @@ export const syncAnalytics = internalAction({
       const mapped = mapProducts(products, thirtyDaysAgo, today);
       const batches = chunk(mapped, BATCH_SIZE);
       for (const batch of batches) {
-        await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
+        await ctx.runMutation(upsertNmReportsRef, { shopId, reports: batch });
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "analytics", status: "ok" as const, count: mapped.length,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "analytics", status: "error" as const, error: e.message,
       });
     }
@@ -176,7 +175,7 @@ export const fetchAnalyticsForRange = internalAction({
     const mapped = mapProducts(products, dateFrom, dateTo);
     const batches = chunk(mapped, BATCH_SIZE);
     for (const batch of batches) {
-      await ctx.runMutation(internal.sync.syncAnalytics.upsertNmReports, { shopId, reports: batch });
+      await ctx.runMutation(upsertNmReportsRef, { shopId, reports: batch });
     }
     return mapped.length;
   },

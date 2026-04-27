@@ -1,8 +1,7 @@
-// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
 import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import { upsertCampaignsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertCampaigns = internalMutation({
   args: { shopId: v.id("shops"), campaigns: v.array(v.any()) },
@@ -101,18 +100,18 @@ export const syncPromotion = internalAction({
         }
         const campaignBatches = chunk(allCampaigns, BATCH_SIZE);
         for (const batch of campaignBatches) {
-          await ctx.runMutation(internal.sync.syncPromotion.upsertCampaigns, { shopId, campaigns: batch });
+          await ctx.runMutation(upsertCampaignsRef, { shopId, campaigns: batch });
         }
-        await ctx.runMutation(internal.sync.helpers.logSync, {
+        await ctx.runMutation(logSyncRef, {
           shopId, endpoint: "campaigns", status: "ok" as const, count: allCampaigns.length,
         });
       } else {
-        await ctx.runMutation(internal.sync.helpers.logSync, {
+        await ctx.runMutation(logSyncRef, {
           shopId, endpoint: "campaigns", status: "ok" as const, count: 0,
         });
       }
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "campaigns", status: "error" as const, error: e.message,
       });
     }

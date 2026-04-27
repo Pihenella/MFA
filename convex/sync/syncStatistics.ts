@@ -1,8 +1,14 @@
-// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
 import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  upsertOrdersRef,
+  upsertSalesRef,
+  clearStocksRef,
+  insertStocksRef,
+  upsertFinancialsRef,
+  logSyncRef,
+} from "../lib/syncRefs";
 
 // ---- Upsert mutations ----
 
@@ -167,13 +173,13 @@ export const syncOrders = internalAction({
       const data = await res.json();
       const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
       for (const batch of batches) {
-        await ctx.runMutation(internal.sync.syncStatistics.upsertOrders, { shopId, orders: batch });
+        await ctx.runMutation(upsertOrdersRef, { shopId, orders: batch });
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "orders", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "orders", status: "error" as const, error: e.message,
       });
     }
@@ -194,13 +200,13 @@ export const syncSales = internalAction({
       const data = await res.json();
       const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
       for (const batch of batches) {
-        await ctx.runMutation(internal.sync.syncStatistics.upsertSales, { shopId, sales: batch });
+        await ctx.runMutation(upsertSalesRef, { shopId, sales: batch });
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "sales", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "sales", status: "error" as const, error: e.message,
       });
     }
@@ -219,16 +225,16 @@ export const syncStocks = internalAction({
       );
       await assertOk(res);
       const data = await res.json();
-      await ctx.runMutation(internal.sync.syncStatistics.clearStocks, { shopId });
+      await ctx.runMutation(clearStocksRef, { shopId });
       const batches = chunk(Array.isArray(data) ? data : [], BATCH_SIZE);
       for (const batch of batches) {
-        await ctx.runMutation(internal.sync.syncStatistics.insertStocks, { shopId, stocks: batch });
+        await ctx.runMutation(insertStocksRef, { shopId, stocks: batch });
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "stocks", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "stocks", status: "error" as const, error: e.message,
       });
     }
@@ -259,16 +265,16 @@ export const syncFinancials = internalAction({
         totalCount += data.length;
         const batches = chunk(data, BATCH_SIZE);
         for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncStatistics.upsertFinancials, { shopId, rows: batch });
+          await ctx.runMutation(upsertFinancialsRef, { shopId, rows: batch });
         }
         rrdid = data[data.length - 1].rrd_id;
         if (data.length < 1000) break;
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "financials", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "financials", status: "error" as const, error: e.message,
       });
     }

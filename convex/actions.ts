@@ -1,24 +1,38 @@
-// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import { verifyShopAccessRef } from "./lib/syncRefs";
+import {
+  verifyShopAccessRef,
+  shopsListInternalRef,
+  shopsUpdateLastSyncRef,
+  syncOrdersRef,
+  syncSalesRef,
+  syncStocksRef,
+  syncFinancialsRef,
+  syncPromotionRef,
+  syncContentRef,
+  syncFeedbacksRef,
+  syncPricesRef,
+  syncReturnsRef,
+  syncTariffsRef,
+  syncAnalyticsRef,
+  fetchAnalyticsForRangeRef,
+} from "./lib/syncRefs";
 
 // Список категорий для синка по порядку, с задержками (в мс) между ними.
 // WB глобальный лимит: все API одного продавца считаются вместе.
 // Statistics: 1 req/min. Остальные: ~3-5 req/min.
-const SYNC_STEPS: Array<{ key: string; ref: any; delayMs: number }> = [
-  { key: "statistics_orders",     ref: internal.sync.syncStatistics.syncOrders,     delayMs: 0 },
-  { key: "statistics_sales",      ref: internal.sync.syncStatistics.syncSales,      delayMs: 65_000 },
-  { key: "statistics_stocks",     ref: internal.sync.syncStatistics.syncStocks,     delayMs: 130_000 },
-  { key: "statistics_financials", ref: internal.sync.syncStatistics.syncFinancials, delayMs: 195_000 },
-  { key: "promotion",            ref: internal.sync.syncPromotion.syncPromotion,   delayMs: 300_000 },
-  { key: "content",              ref: internal.sync.syncContent.syncContent,        delayMs: 390_000 },
-  { key: "feedbacks",            ref: internal.sync.syncFeedbacks.syncFeedbacks,    delayMs: 420_000 },
-  { key: "prices",               ref: internal.sync.syncPrices.syncPrices,          delayMs: 450_000 },
-  { key: "returns",              ref: internal.sync.syncReturns.syncReturns,        delayMs: 480_000 },
-  { key: "tariffs",              ref: internal.sync.syncTariffs.syncTariffs,         delayMs: 510_000 },
-  { key: "analytics",            ref: internal.sync.syncAnalytics.syncAnalytics,   delayMs: 660_000 },
+const SYNC_STEPS: Array<{ key: string; ref: typeof syncOrdersRef; delayMs: number }> = [
+  { key: "statistics_orders",     ref: syncOrdersRef,     delayMs: 0 },
+  { key: "statistics_sales",      ref: syncSalesRef,      delayMs: 65_000 },
+  { key: "statistics_stocks",     ref: syncStocksRef,     delayMs: 130_000 },
+  { key: "statistics_financials", ref: syncFinancialsRef, delayMs: 195_000 },
+  { key: "promotion",            ref: syncPromotionRef,   delayMs: 300_000 },
+  { key: "content",              ref: syncContentRef,     delayMs: 390_000 },
+  { key: "feedbacks",            ref: syncFeedbacksRef,   delayMs: 420_000 },
+  { key: "prices",               ref: syncPricesRef,      delayMs: 450_000 },
+  { key: "returns",              ref: syncReturnsRef,     delayMs: 480_000 },
+  { key: "tariffs",              ref: syncTariffsRef,     delayMs: 510_000 },
+  { key: "analytics",            ref: syncAnalyticsRef,   delayMs: 660_000 },
 ];
 
 // Ручной триггер: планирует каждую категорию через scheduler с задержками
@@ -27,7 +41,7 @@ export const triggerSync = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
     await ctx.runMutation(verifyShopAccessRef, { shopId });
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
 
@@ -45,7 +59,7 @@ export const triggerSync = action({
     }
 
     // Обновить lastSyncAt после последней запланированной задачи
-    await ctx.scheduler.runAfter(720_000, internal.shops.updateLastSync, { id: shopId });
+    await ctx.scheduler.runAfter(720_000, shopsUpdateLastSyncRef, { id: shopId });
   },
 });
 
@@ -56,10 +70,10 @@ export const resyncFinancials = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
     await ctx.runMutation(verifyShopAccessRef, { shopId });
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
-    await ctx.scheduler.runAfter(0, internal.sync.syncStatistics.syncFinancials, {
+    await ctx.scheduler.runAfter(0, syncFinancialsRef, {
       shopId,
       apiKey: shop.apiKey,
     });
@@ -72,10 +86,10 @@ export const resyncOrders = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
     await ctx.runMutation(verifyShopAccessRef, { shopId });
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
-    await ctx.scheduler.runAfter(0, internal.sync.syncStatistics.syncOrders, {
+    await ctx.scheduler.runAfter(0, syncOrdersRef, {
       shopId,
       apiKey: shop.apiKey,
     });
@@ -87,7 +101,7 @@ export const debugWbFields = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }): Promise<unknown> => {
     await ctx.runMutation(verifyShopAccessRef, { shopId });
-    const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(internal.shops.listInternal);
+    const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(shopsListInternalRef);
     const shop = shops.find((s: { _id: string }) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
     const today = new Date().toISOString().slice(0, 10);
@@ -120,11 +134,11 @@ export const fetchAnalytics = action({
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }): Promise<number> => {
     await ctx.runMutation(verifyShopAccessRef, { shopId });
-    const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(internal.shops.listInternal);
+    const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(shopsListInternalRef);
     const shop = shops.find((s: { _id: string }) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
 
-    const count = await ctx.runAction(internal.sync.syncAnalytics.fetchAnalyticsForRange, {
+    const count = await ctx.runAction(fetchAnalyticsForRangeRef, {
       shopId,
       apiKey: shop.apiKey,
       dateFrom,
