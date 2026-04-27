@@ -1,14 +1,132 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
+  // Convex Auth: authSessions, authAccounts, authVerificationCodes,
+  // authRefreshTokens, authVerifiers (users — переопределяем ниже).
+  ...authTables,
+
+  // Расширенный users — сохраняем поля Convex Auth + наши бизнес-поля.
+  users: defineTable({
+    // Поля от Convex Auth (все optional, как в authTables.users):
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    image: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    // Наши поля:
+    businessName: v.optional(v.string()),
+    shopsCountWB: v.optional(v.number()),
+    shopsCountOzon: v.optional(v.number()),
+    skuCount: v.optional(v.number()),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected")
+      )
+    ),
+    isSystemAdmin: v.optional(v.boolean()),
+    rejectionReason: v.optional(v.string()),
+    createdAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    // emailVerifiedAt — наш custom email-verification (Convex Auth uses
+    // emailVerificationTime для своего flow). Мы используем свой.
+    emailVerifiedAt: v.optional(v.number()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"])
+    .index("by_status", ["status"]),
+
+  organizations: defineTable({
+    name: v.string(),
+    ownerId: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_owner", ["ownerId"]),
+
+  memberships: defineTable({
+    userId: v.id("users"),
+    orgId: v.id("organizations"),
+    role: v.union(v.literal("owner"), v.literal("member")),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
+    .index("by_user_org", ["userId", "orgId"]),
+
+  invites: defineTable({
+    orgId: v.id("organizations"),
+    email: v.string(),
+    role: v.union(v.literal("owner"), v.literal("member")),
+    token: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("expired"),
+      v.literal("revoked")
+    ),
+    invitedBy: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_org", ["orgId"])
+    .index("by_email_status", ["email", "status"]),
+
+  emailSendLog: defineTable({
+    email: v.string(),
+    kind: v.union(
+      v.literal("verify"),
+      v.literal("reset"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("teamInvite"),
+      v.literal("inviteAccepted")
+    ),
+    sentAt: v.number(),
+  }).index("by_email_kind", ["email", "kind"]),
+
+  loginAttempts: defineTable({
+    email: v.string(),
+    attemptedAt: v.number(),
+    success: v.boolean(),
+  }).index("by_email_time", ["email", "attemptedAt"]),
+
+  verifyTokens: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_user", ["userId"]),
+
+  resetTokens: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_user", ["userId"]),
+
   shops: defineTable({
+    orgId: v.optional(v.id("organizations")),
+    marketplace: v.optional(
+      v.union(v.literal("wb"), v.literal("ozon"))
+    ),
     name: v.string(),
     apiKey: v.string(),
+    ozonClientId: v.optional(v.string()),
     isActive: v.boolean(),
     lastSyncAt: v.optional(v.number()),
     enabledCategories: v.optional(v.array(v.string())),
-  }),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_marketplace", ["orgId", "marketplace"]),
 
   orders: defineTable({
     shopId: v.id("shops"),

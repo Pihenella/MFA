@@ -10,10 +10,15 @@
 
 import type * as actions from "../actions.js";
 import type * as analytics from "../analytics.js";
+import type * as auth from "../auth.js";
 import type * as costs from "../costs.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
+import type * as email_actions from "../email/actions.js";
+import type * as email_rateLimit from "../email/rateLimit.js";
+import type * as email_resend from "../email/resend.js";
 import type * as financials from "../financials.js";
+import type * as http from "../http.js";
 import type * as shops from "../shops.js";
 import type * as sync from "../sync.js";
 import type * as sync_helpers from "../sync/helpers.js";
@@ -36,10 +41,15 @@ import type {
 declare const fullApi: ApiFromModules<{
   actions: typeof actions;
   analytics: typeof analytics;
+  auth: typeof auth;
   costs: typeof costs;
   crons: typeof crons;
   dashboard: typeof dashboard;
+  "email/actions": typeof email_actions;
+  "email/rateLimit": typeof email_rateLimit;
+  "email/resend": typeof email_resend;
   financials: typeof financials;
+  http: typeof http;
   shops: typeof shops;
   sync: typeof sync;
   "sync/helpers": typeof sync_helpers;
