@@ -1,6 +1,11 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { ensureApproved, listUserShopIds } from "./lib/helpers";
+import {
+  ensureApproved,
+  ensureOrgOwner,
+  ensureShopAccess,
+  listUserShopIds,
+} from "./lib/helpers";
 
 /** @deprecated Use shops.listMine. Удалится в A.3 после миграции UI. */
 export const list = query({
@@ -37,6 +42,7 @@ export const add = mutation({
     ozonClientId: v.optional(v.string()),
   },
   handler: async (ctx, { orgId, marketplace, name, apiKey, ozonClientId }) => {
+    await ensureOrgOwner(ctx, orgId);
     return await ctx.db.insert("shops", {
       orgId,
       marketplace,
@@ -52,6 +58,9 @@ export const add = mutation({
 export const remove = mutation({
   args: { id: v.id("shops") },
   handler: async (ctx, { id }) => {
+    const { shop, membership } = await ensureShopAccess(ctx, id);
+    if (membership.role !== "owner") throw new Error("forbidden: only owner can delete shops");
+    void shop;
     await ctx.db.delete(id);
   },
 });
@@ -59,6 +68,7 @@ export const remove = mutation({
 export const setActive = mutation({
   args: { id: v.id("shops"), isActive: v.boolean() },
   handler: async (ctx, { id, isActive }) => {
+    await ensureShopAccess(ctx, id);
     await ctx.db.patch(id, { isActive });
   },
 });
@@ -76,6 +86,7 @@ export const updateCategories = mutation({
     enabledCategories: v.array(v.string()),
   },
   handler: async (ctx, { id, enabledCategories }) => {
+    await ensureShopAccess(ctx, id);
     await ctx.db.patch(id, { enabledCategories });
   },
 });
@@ -96,7 +107,7 @@ export const enableAllCategoriesForAll = internalMutation({
 export const getSyncLog = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
-    // Берём достаточно записей, чтобы покрыть все эндпоинты (12+ эндпоинтов × 2-3 цикла)
+    await ensureShopAccess(ctx, shopId);
     const logs = await ctx.db
       .query("syncLog")
       .withIndex("by_shop", (q) => q.eq("shopId", shopId))
