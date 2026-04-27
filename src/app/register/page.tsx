@@ -53,7 +53,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-6">
-        <h1 className="text-2xl font-bold text-center">Регистрация в MFA</h1>
+        <h1 className="text-2xl font-bold text-center">Регистрация в Finly</h1>
         <form onSubmit={handleSubmit} className="space-y-3">
           <Field label="Email *">
             <Input type="email" value={form.email} onChange={update("email")} required autoComplete="email" />

@@ -39,7 +39,7 @@ export function TopNav() {
       <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center gap-6">
         {/* Logo */}
         <Link href="/" className="text-xl font-bold text-violet-600">
-          MFA
+          Finly
         </Link>
 
         {/* WB Dropdown */}

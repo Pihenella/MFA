@@ -8,7 +8,7 @@ import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
-  title: "MFA — Marketplace Finance Analytics",
+  title: "Finly — финансы селлера на маркетплейсах",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

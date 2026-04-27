@@ -4,7 +4,7 @@ const PRIMARY = "#f97316";
 const FOOTER = `
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0 16px;" />
   <p style="color:#6b7280;font-size:12px;">
-    Это автоматическое письмо от MFA — Marketplace Financial Analytics.<br/>
+    Это автоматическое письмо от Finly — финансы селлера на маркетплейсах.<br/>
     Связь с разработчиком: <a href="https://t.me/Virtuozick" style="color:${PRIMARY};">@Virtuozick</a>
   </p>
 `;
@@ -19,7 +19,7 @@ function wrap(content: string, title: string): string {
 </head>
 <body style="font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;background:#fafafa;margin:0;padding:24px;color:#0a0a0a;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb;">
-    <h1 style="font-size:18px;font-weight:600;color:${PRIMARY};margin:0 0 16px;">MFA</h1>
+    <h1 style="font-size:18px;font-weight:600;color:${PRIMARY};margin:0 0 16px;">Finly</h1>
     ${content}
     ${FOOTER}
   </div>
@@ -41,11 +41,11 @@ export function renderVerifyEmail(args: {
   name: string;
   verifyUrl: string;
 }): RenderedEmail {
-  const subject = "Подтверждение email — MFA";
+  const subject = "Подтверждение email — Finly";
   const safeName = escapeHtml(args.name);
   const html = wrap(
     `<p>Здравствуйте, ${safeName}!</p>
-     <p>Подтвердите ваш email, чтобы продолжить регистрацию в MFA. Ссылка действительна 24 часа.</p>
+     <p>Подтвердите ваш email, чтобы продолжить регистрацию в Finly. Ссылка действительна 24 часа.</p>
      ${btn(args.verifyUrl, "Подтвердить email")}
      <p style="font-size:12px;color:#6b7280;">Если кнопка не работает: ${escapeHtml(args.verifyUrl)}</p>`,
     subject
@@ -58,14 +58,14 @@ export function renderApprovedEmail(args: {
   name: string;
   loginUrl: string;
 }): RenderedEmail {
-  const subject = "Заявка одобрена — MFA";
+  const subject = "Заявка одобрена — Finly";
   const html = wrap(
     `<p>Здравствуйте, ${escapeHtml(args.name)}!</p>
-     <p>Ваш аккаунт в MFA одобрен. Можете войти и подключить магазины Wildberries и Ozon.</p>
-     ${btn(args.loginUrl, "Войти в MFA")}`,
+     <p>Ваш аккаунт в Finly одобрен. Можете войти и подключить магазины Wildberries и Ozon.</p>
+     ${btn(args.loginUrl, "Войти в Finly")}`,
     subject
   );
-  const text = `Здравствуйте, ${args.name}!\nВаш аккаунт в MFA одобрен.\nВойти: ${args.loginUrl}`;
+  const text = `Здравствуйте, ${args.name}!\nВаш аккаунт в Finly одобрен.\nВойти: ${args.loginUrl}`;
   return { subject, html, text };
 }
 
@@ -74,13 +74,13 @@ export function renderRejectedEmail(args: {
   reason?: string;
   supportContact: string;
 }): RenderedEmail {
-  const subject = "Заявка не одобрена — MFA";
+  const subject = "Заявка не одобрена — Finly";
   const reasonBlock = args.reason
     ? `<p><strong>Причина:</strong> ${escapeHtml(args.reason)}</p>`
     : "";
   const html = wrap(
     `<p>Здравствуйте, ${escapeHtml(args.name)}.</p>
-     <p>К сожалению, ваша заявка на регистрацию в MFA не была одобрена.</p>
+     <p>К сожалению, ваша заявка на регистрацию в Finly не была одобрена.</p>
      ${reasonBlock}
      <p>Если у вас есть вопросы — напишите ${escapeHtml(args.supportContact)}.</p>`,
     subject
@@ -93,7 +93,7 @@ export function renderResetPasswordEmail(args: {
   name: string;
   resetUrl: string;
 }): RenderedEmail {
-  const subject = "Сброс пароля — MFA";
+  const subject = "Сброс пароля — Finly";
   const html = wrap(
     `<p>Здравствуйте, ${escapeHtml(args.name)}!</p>
      <p>Кто-то запросил сброс пароля для вашего аккаунта. Если это были не вы — проигнорируйте письмо.</p>
@@ -111,14 +111,14 @@ export function renderTeamInviteEmail(args: {
   orgName: string;
   acceptUrl: string;
 }): RenderedEmail {
-  const subject = `${args.inviterName} приглашает вас в ${args.orgName} на MFA`;
+  const subject = `${args.inviterName} приглашает вас в ${args.orgName} на Finly`;
   const html = wrap(
-    `<p>${escapeHtml(args.inviterName)} приглашает вас присоединиться к организации <strong>${escapeHtml(args.orgName)}</strong> на MFA.</p>
+    `<p>${escapeHtml(args.inviterName)} приглашает вас присоединиться к организации <strong>${escapeHtml(args.orgName)}</strong> на Finly.</p>
      <p>Ссылка действительна 3 дня.</p>
      ${btn(args.acceptUrl, "Принять приглашение")}`,
     subject
   );
-  const text = `${args.inviterName} приглашает вас в ${args.orgName} на MFA.\nПринять (3 дня): ${args.acceptUrl}`;
+  const text = `${args.inviterName} приглашает вас в ${args.orgName} на Finly.\nПринять (3 дня): ${args.acceptUrl}`;
   return { subject, html, text };
 }
 
@@ -130,7 +130,7 @@ export function renderInviteAcceptedEmail(args: {
   const subject = `${args.inviteeName} присоединился к ${args.orgName}`;
   const html = wrap(
     `<p>Здравствуйте, ${escapeHtml(args.ownerName)}!</p>
-     <p>${escapeHtml(args.inviteeName)} присоединился к организации ${escapeHtml(args.orgName)} на MFA.</p>`,
+     <p>${escapeHtml(args.inviteeName)} присоединился к организации ${escapeHtml(args.orgName)} на Finly.</p>`,
     subject
   );
   const text = `Здравствуйте, ${args.ownerName}!\n${args.inviteeName} присоединился к ${args.orgName}.`;

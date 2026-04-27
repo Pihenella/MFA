@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-bold text-center">Вход в MFA</h1>
+        <h1 className="text-2xl font-bold text-center">Вход в Finly</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label>Email</Label>
