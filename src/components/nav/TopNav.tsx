@@ -1,14 +1,16 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LogOut, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 const WB_MENU = [
   { label: "Дашборд", href: "/" },
@@ -24,6 +26,13 @@ const WB_MENU = [
 export function TopNav() {
   const pathname = usePathname();
   const isWbActive = WB_MENU.some((item) => pathname === item.href);
+  const user = useCurrentUser();
+  const { signOut } = useAuthActions();
+  const router = useRouter();
+  const handleLogout = async () => {
+    await signOut();
+    router.push("/login");
+  };
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -67,14 +76,27 @@ export function TopNav() {
           Ozon <ChevronDown className="h-4 w-4" />
         </span>
 
-        {/* Settings link */}
-        <div className="ml-auto">
+        {/* Settings + user menu */}
+        <div className="ml-auto flex items-center gap-3">
           <Link
             href="/settings"
             className="text-sm text-gray-500 hover:text-gray-700"
           >
             Настройки
           </Link>
+          {user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 text-sm px-2 py-1 hover:bg-gray-100 rounded-md">
+                <UserIcon className="h-4 w-4" />
+                {user.name || user.email}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" /> Выйти
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     </header>
