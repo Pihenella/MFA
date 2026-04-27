@@ -25,6 +25,13 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         const emailCheck = validateEmail(email);
         if (!emailCheck.ok) throw new Error(emailCheck.error);
 
+        // Поля бизнес-профиля валидируем только при signUp.
+        // Convex Auth вызывает profile() на всех flow (signIn, reset, reset-verification),
+        // где этих полей нет — возвращаем только email (используется для поиска юзера).
+        if (params.flow !== "signUp") {
+          return { email } as { email: string };
+        }
+
         const name = String(params.name ?? "").trim();
         if (name.length < 2) throw new Error("Имя обязательно (мин. 2 символа)");
 
