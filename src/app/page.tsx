@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef } from "@/lib/convex-refs";
+import { shopsListMineRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { Doc, Id } from "../../convex/_generated/dataModel";
@@ -8,7 +8,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { Welcome } from "@/components/dashboard/Welcome";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { computeDashboardMetrics } from "@/lib/metrics";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
@@ -24,7 +26,8 @@ const PREV_MONTH_START = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM
 const PREV_MONTH_END = format(subDays(startOfMonth(new Date()), 1), "yyyy-MM-dd");
 
 export default function DashboardPage() {
-  const shops = (useQuery(shopsListRef) ?? []) as Doc<"shops">[];
+  const shops = (useQuery(shopsListMineRef) ?? []) as Doc<"shops">[];
+  const user = useCurrentUser();
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
@@ -41,6 +44,10 @@ export default function DashboardPage() {
   const costSet = new Set(now.costs.filter((c) => c.cost > 0).map((c) => c.nmId));
   const finNmIds = new Set(now.financials.filter((f) => f.docTypeName === "Продажа").map((f) => f.nmId));
   const missingCostCount = [...finNmIds].filter((id) => !costSet.has(id)).length;
+
+  if (user && shops.length === 0) {
+    return <Welcome userName={user.name || "пользователь"} />;
+  }
 
   return (
     <div className="space-y-6">
