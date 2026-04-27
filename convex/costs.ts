@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ensureShopAccess } from "./lib/helpers";
 
 export const upsertCost = mutation({
   args: {
@@ -9,6 +10,7 @@ export const upsertCost = mutation({
     cost: v.number(),
   },
   handler: async (ctx, { shopId, nmId, supplierArticle, cost }) => {
+    await ensureShopAccess(ctx, shopId);
     const existing = await ctx.db
       .query("costs")
       .withIndex("by_shop_nm", (q) => q.eq("shopId", shopId).eq("nmId", nmId))
@@ -33,6 +35,7 @@ export const upsertBulk = mutation({
     ),
   },
   handler: async (ctx, { shopId, items }) => {
+    await ensureShopAccess(ctx, shopId);
     for (const item of items) {
       const existing = await ctx.db
         .query("costs")
@@ -50,6 +53,7 @@ export const upsertBulk = mutation({
 export const listByShop = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
+    await ensureShopAccess(ctx, shopId);
     return await ctx.db
       .query("costs")
       .withIndex("by_shop", (q) => q.eq("shopId", shopId))
