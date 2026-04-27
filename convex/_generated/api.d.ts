@@ -11,6 +11,9 @@
 import type * as actions from "../actions.js";
 import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
+import type * as auth_forgotPassword from "../auth/forgotPassword.js";
+import type * as auth_resetPassword from "../auth/resetPassword.js";
+import type * as auth_verifyEmail from "../auth/verifyEmail.js";
 import type * as costs from "../costs.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
@@ -19,6 +22,7 @@ import type * as email_rateLimit from "../email/rateLimit.js";
 import type * as email_resend from "../email/resend.js";
 import type * as financials from "../financials.js";
 import type * as http from "../http.js";
+import type * as lib_helpers from "../lib/helpers.js";
 import type * as shops from "../shops.js";
 import type * as sync from "../sync.js";
 import type * as sync_helpers from "../sync/helpers.js";
@@ -42,6 +46,9 @@ declare const fullApi: ApiFromModules<{
   actions: typeof actions;
   analytics: typeof analytics;
   auth: typeof auth;
+  "auth/forgotPassword": typeof auth_forgotPassword;
+  "auth/resetPassword": typeof auth_resetPassword;
+  "auth/verifyEmail": typeof auth_verifyEmail;
   costs: typeof costs;
   crons: typeof crons;
   dashboard: typeof dashboard;
@@ -50,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "email/resend": typeof email_resend;
   financials: typeof financials;
   http: typeof http;
+  "lib/helpers": typeof lib_helpers;
   shops: typeof shops;
   sync: typeof sync;
   "sync/helpers": typeof sync_helpers;

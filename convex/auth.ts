@@ -1,12 +1,21 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Password } from "@convex-dev/auth/providers/Password";
-import { internal } from "./_generated/api";
+import type { FunctionReference } from "convex/server";
 import {
   generateRandomToken,
   normalizeEmail,
   validateEmail,
   validatePassword,
 } from "../src/lib/auth-utils";
+
+// Pre-resolved ref обходит TS2589 (deep `internal` type инстанциация
+// в auth-callback контексте). Convex принимает строковые refs формата
+// "<module>:<func>" для модулей в подпапках.
+const sendVerifyRef = "email/actions:sendVerify" as unknown as FunctionReference<
+  "action",
+  "internal",
+  { email: string; name: string; verifyUrl: string }
+>;
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
@@ -78,7 +87,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
       const verifyUrl = `${appUrl}/verify-email?token=${token}`;
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendVerify, {
+      await ctx.scheduler.runAfter(0, sendVerifyRef, {
         email: user.email,
         name: user.name ?? "",
         verifyUrl,

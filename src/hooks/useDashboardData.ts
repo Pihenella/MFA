@@ -1,11 +1,24 @@
 import { useQuery, useAction } from "convex/react";
 import { useEffect, useRef } from "react";
-import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+import { api } from "../lib/convex-api";
+import { Doc, Id } from "../../convex/_generated/dataModel";
 
 type Period = { from: string; to: string };
 
-export function useDashboardData(period: Period, comparePeriod: Period, shopId?: Id<"shops">) {
+type DashboardSlice = {
+  orders: Doc<"orders">[];
+  sales: Doc<"sales">[];
+  financials: Doc<"financials">[];
+  costs: Doc<"costs">[];
+  campaigns: Doc<"campaigns">[];
+  nmReports: Doc<"nmReports">[];
+};
+
+export function useDashboardData(
+  period: Period,
+  comparePeriod: Period,
+  shopId?: Id<"shops">
+): { now: DashboardSlice; prev: DashboardSlice } {
   const fetchAnalytics = useAction(api.actions.fetchAnalytics);
   const fetchedRef = useRef<string>("");
 
