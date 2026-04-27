@@ -68,6 +68,7 @@ export type CurrentUser = {
   status: "pending" | "approved" | "rejected";
   isSystemAdmin: boolean;
   emailVerifiedAt: number | null;
+  rejectionReason: string | null;
   createdAt: number;
 };
 

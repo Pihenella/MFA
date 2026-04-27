@@ -8,7 +8,7 @@ export const current = query({
     if (userId === null) return null;
     const user = await ctx.db.get(userId);
     if (!user) return null;
-    // Don't expose internal/Convex Auth fields outwards
+    // Не возвращаем internal/Convex Auth поля наружу
     return {
       _id: user._id,
       email: user.email ?? "",
@@ -18,9 +18,10 @@ export const current = query({
       shopsCountWB: user.shopsCountWB ?? 0,
       shopsCountOzon: user.shopsCountOzon ?? 0,
       skuCount: user.skuCount ?? 0,
-      status: user.status ?? "pending",
+      status: (user.status === "approved" || user.status === "rejected") ? user.status : "pending" as const,
       isSystemAdmin: user.isSystemAdmin ?? false,
       emailVerifiedAt: user.emailVerifiedAt ?? null,
+      rejectionReason: user.rejectionReason ?? null,
       createdAt: user.createdAt ?? 0,
     };
   },
