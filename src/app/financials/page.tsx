@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef, getCampaignsRef, costsListByShopRef, getFinancialReportsRef } from "@/lib/convex-refs";
+import { shopsListMineRef, getCampaignsRef, costsListByShopRef, getFinancialReportsRef } from "@/lib/convex-refs";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -272,7 +272,7 @@ function WideTable<T extends Record<string, unknown>>({
 // ---- Main page ----
 
 export default function FinancialsPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [shopId, setShopId] = useState<string>("");
   const [dateFrom, setDateFrom] = useState(() =>
     format(subDays(new Date(), 60), "yyyy-MM-dd"),

@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef, getFeedbacksRef, getQuestionsRef } from "@/lib/convex-refs";
+import { shopsListMineRef, getFeedbacksRef, getQuestionsRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -30,7 +30,7 @@ function Stars({ count }: { count: number }) {
 }
 
 export default function FeedbacksPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 

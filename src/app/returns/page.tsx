@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef, getReturnsRef } from "@/lib/convex-refs";
+import { shopsListMineRef, getReturnsRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -13,7 +13,7 @@ const PREV_END = format(subDays(new Date(), 30), "yyyy-MM-dd");
 const PREV_START = format(subDays(new Date(), 59), "yyyy-MM-dd");
 
 export default function ReturnsPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 

@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef, getSalesAnalyticsRef, fetchAnalyticsRef } from "@/lib/convex-refs";
+import { shopsListMineRef, getSalesAnalyticsRef, fetchAnalyticsRef } from "@/lib/convex-refs";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useAction } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -129,7 +129,7 @@ function firstColLabel(gb: GroupBy): string {
 }
 
 export default function AnalyticsPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 

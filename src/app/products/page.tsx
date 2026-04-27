@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef, upsertCostRef, upsertBulkRef, getStocksRef, costsListByShopRef, getProductCardsRef } from "@/lib/convex-refs";
+import { shopsListMineRef, upsertCostRef, upsertBulkRef, getStocksRef, costsListByShopRef, getProductCardsRef } from "@/lib/convex-refs";
 import { useQuery, useMutation } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useRef } from "react";
@@ -11,7 +11,7 @@ import * as XLSX from "xlsx";
 import { parseSimpleCostFile, isRealizationReport, parseRealizationReport } from "@/lib/costUploadParser";
 
 export default function ProductsPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || shops[0]?._id) as Id<"shops"> | undefined;
 

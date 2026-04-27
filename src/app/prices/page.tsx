@@ -1,5 +1,5 @@
 "use client";
-import { shopsListRef, getCostsRef, getPricesRef } from "@/lib/convex-refs";
+import { shopsListMineRef, getCostsRef, getPricesRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -16,7 +16,7 @@ function fmt(val: number, unit?: string): string {
 }
 
 export default function PricesPage() {
-  const shops = useQuery(shopsListRef) ?? [];
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
