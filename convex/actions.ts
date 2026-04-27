@@ -2,6 +2,7 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { verifyShopAccessRef } from "./lib/syncRefs";
 
 // Список категорий для синка по порядку, с задержками (в мс) между ними.
 // WB глобальный лимит: все API одного продавца считаются вместе.
@@ -25,6 +26,7 @@ const SYNC_STEPS: Array<{ key: string; ref: any; delayMs: number }> = [
 export const triggerSync = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
+    await ctx.runMutation(verifyShopAccessRef, { shopId });
     const shops = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
@@ -53,6 +55,7 @@ export const triggerSync = action({
 export const resyncFinancials = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
+    await ctx.runMutation(verifyShopAccessRef, { shopId });
     const shops = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
@@ -68,6 +71,7 @@ export const resyncFinancials = action({
 export const resyncOrders = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
+    await ctx.runMutation(verifyShopAccessRef, { shopId });
     const shops = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
@@ -82,6 +86,7 @@ export const resyncOrders = action({
 export const debugWbFields = action({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }): Promise<unknown> => {
+    await ctx.runMutation(verifyShopAccessRef, { shopId });
     const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s: { _id: string }) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");
@@ -114,6 +119,7 @@ export const fetchAnalytics = action({
     dateTo: v.string(),
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }): Promise<number> => {
+    await ctx.runMutation(verifyShopAccessRef, { shopId });
     const shops: Array<{ _id: string; apiKey: string }> = await ctx.runQuery(internal.shops.listInternal);
     const shop = shops.find((s: { _id: string }) => s._id === shopId);
     if (!shop) throw new Error("Shop not found");

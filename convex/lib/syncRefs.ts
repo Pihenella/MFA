@@ -52,3 +52,12 @@ export const fetchAnalyticsForRangeRef =
       dateTo: string;
     }
   >;
+
+// lib/authActions:verifyShopAccess — auth check для action-ов
+export const verifyShopAccessRef =
+  "lib/authActions:verifyShopAccess" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    { shopId: Id<"shops"> },
+    { ok: true }
+  >;

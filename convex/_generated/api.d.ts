@@ -23,6 +23,7 @@ import type * as email_rateLimit from "../email/rateLimit.js";
 import type * as email_resend from "../email/resend.js";
 import type * as financials from "../financials.js";
 import type * as http from "../http.js";
+import type * as lib_authActions from "../lib/authActions.js";
 import type * as lib_emailRefs from "../lib/emailRefs.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_syncRefs from "../lib/syncRefs.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "email/resend": typeof email_resend;
   financials: typeof financials;
   http: typeof http;
+  "lib/authActions": typeof lib_authActions;
   "lib/emailRefs": typeof lib_emailRefs;
   "lib/helpers": typeof lib_helpers;
   "lib/syncRefs": typeof lib_syncRefs;
