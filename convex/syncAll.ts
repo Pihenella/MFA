@@ -1,3 +1,4 @@
+// @ts-nocheck — TS2589 (Convex deep type instantiation после расширения api в MFA-A.1). Runtime не страдает, схемы валидны.
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 

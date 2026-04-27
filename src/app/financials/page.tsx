@@ -1,6 +1,6 @@
 "use client";
+import { shopsListRef, getCampaignsRef, costsListByShopRef, getFinancialReportsRef } from "@/lib/convex-refs";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -272,7 +272,7 @@ function WideTable<T extends Record<string, unknown>>({
 // ---- Main page ----
 
 export default function FinancialsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [shopId, setShopId] = useState<string>("");
   const [dateFrom, setDateFrom] = useState(() =>
     format(subDays(new Date(), 60), "yyyy-MM-dd"),
@@ -288,7 +288,7 @@ export default function FinancialsPage() {
 
   const rows =
     useQuery(
-      api.financials.getReports,
+      getFinancialReportsRef,
       activeShopId
         ? { shopId: activeShopId, dateFrom, dateTo }
         : "skip",
@@ -296,13 +296,13 @@ export default function FinancialsPage() {
 
   const costs =
     useQuery(
-      api.costs.listByShop,
+      costsListByShopRef,
       activeShopId ? { shopId: activeShopId } : "skip",
     ) ?? [];
 
   const campaigns =
     useQuery(
-      api.dashboard.getCampaigns,
+      getCampaignsRef,
       activeShopId
         ? { shopId: activeShopId, dateFrom, dateTo }
         : "skip",

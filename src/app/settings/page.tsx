@@ -1,6 +1,6 @@
 "use client";
+import { shopsListRef, shopsGetSyncLogRef, shopsAddRef, shopsRemoveRef, shopsUpdateCategoriesRef, triggerSyncRef } from "@/lib/convex-refs";
 import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ const DEFAULT_CATEGORIES = [
 ];
 
 function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
-  const logs = useQuery(api.shops.getSyncLog, { shopId }) ?? [];
+  const logs = useQuery(shopsGetSyncLogRef, { shopId }) ?? [];
   const [expanded, setExpanded] = useState(false);
 
   const latestByEndpoint = new Map<string, (typeof logs)[number]>();
@@ -101,7 +101,7 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
 }
 
 function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current: string[] }) {
-  const updateCategories = useMutation(api.shops.updateCategories);
+  const updateCategories = useMutation(shopsUpdateCategoriesRef);
   const [categories, setCategories] = useState<string[]>(current);
 
   const toggle = async (catId: string) => {
@@ -136,10 +136,10 @@ function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current:
 }
 
 export default function SettingsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
-  const addShop = useMutation(api.shops.add);
-  const removeShop = useMutation(api.shops.remove);
-  const triggerSync = useAction(api.actions.triggerSync);
+  const shops = useQuery(shopsListRef) ?? [];
+  const addShop = useMutation(shopsAddRef);
+  const removeShop = useMutation(shopsRemoveRef);
+  const triggerSync = useAction(triggerSyncRef);
 
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -148,7 +148,9 @@ export default function SettingsPage() {
 
   const handleAdd = async () => {
     if (!name || !apiKey) return;
-    await addShop({ name, apiKey });
+    // TODO MFA-A.2: получать orgId из текущей session, marketplace — из UI выбора.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await addShop({ name, apiKey } as any);
     setName("");
     setApiKey("");
   };

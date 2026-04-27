@@ -1,8 +1,8 @@
 "use client";
+import { shopsListRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, subDays } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ const GRANULARITIES = [
 type Granularity = "day" | "week" | "month";
 
 export default function PulsePage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 

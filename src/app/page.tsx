@@ -1,8 +1,8 @@
 "use client";
+import { shopsListRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+import { Doc, Id } from "../../convex/_generated/dataModel";
 import { format, subDays, startOfMonth, subMonths } from "date-fns";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
@@ -24,7 +24,7 @@ const PREV_MONTH_START = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM
 const PREV_MONTH_END = format(subDays(startOfMonth(new Date()), 1), "yyyy-MM-dd");
 
 export default function DashboardPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = (useQuery(shopsListRef) ?? []) as Doc<"shops">[];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 

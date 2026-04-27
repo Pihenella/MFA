@@ -1,7 +1,7 @@
 "use client";
+import { shopsListRef, getSalesAnalyticsRef, fetchAnalyticsRef } from "@/lib/convex-refs";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, startOfMonth, subMonths, subDays } from "date-fns";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
@@ -129,7 +129,7 @@ function firstColLabel(gb: GroupBy): string {
 }
 
 export default function AnalyticsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
@@ -140,7 +140,7 @@ export default function AnalyticsPage() {
   const [sortAsc, setSortAsc] = useState(false);
 
   // Запрашиваем аналитику воронки у WB для выбранного периода (как МП Факт)
-  const fetchAnalytics = useAction(api.actions.fetchAnalytics);
+  const fetchAnalytics = useAction(fetchAnalyticsRef);
   const fetchedRef = useRef("");
   useEffect(() => {
     const activeShops = shopId ? shops.filter((s) => s._id === shopId) : shops;
@@ -158,7 +158,7 @@ export default function AnalyticsPage() {
     })();
   }, [shopId, shops, period.from, period.to, fetchAnalytics]);
 
-  const data = useQuery(api.analytics.getSalesAnalytics, {
+  const data = useQuery(getSalesAnalyticsRef, {
     shopId, dateFrom: period.from, dateTo: period.to, groupBy,
   });
   const rows = data ?? [];

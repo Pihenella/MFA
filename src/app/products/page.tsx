@@ -1,6 +1,6 @@
 "use client";
+import { shopsListRef, upsertCostRef, upsertBulkRef, getStocksRef, costsListByShopRef, getProductCardsRef } from "@/lib/convex-refs";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,26 +11,26 @@ import * as XLSX from "xlsx";
 import { parseSimpleCostFile, isRealizationReport, parseRealizationReport } from "@/lib/costUploadParser";
 
 export default function ProductsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || shops[0]?._id) as Id<"shops"> | undefined;
 
   const stocks = useQuery(
-    api.dashboard.getStocks,
+    getStocksRef,
     shopId ? { shopId } : "skip"
   ) ?? [];
   const costs = useQuery(
-    api.costs.listByShop,
+    costsListByShopRef,
     shopId ? { shopId } : "skip"
   ) ?? [];
 
   const productCards = useQuery(
-    api.dashboard.getProductCards,
+    getProductCardsRef,
     shopId ? { shopId } : "skip"
   ) ?? [];
 
-  const upsertCost = useMutation(api.costs.upsertCost);
-  const upsertBulk = useMutation(api.costs.upsertBulk);
+  const upsertCost = useMutation(upsertCostRef);
+  const upsertBulk = useMutation(upsertBulkRef);
 
   const [editMap, setEditMap] = useState<Record<number, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
