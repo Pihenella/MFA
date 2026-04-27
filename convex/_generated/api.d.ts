@@ -26,6 +26,7 @@ import type * as http from "../http.js";
 import type * as lib_emailRefs from "../lib/emailRefs.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_syncRefs from "../lib/syncRefs.js";
+import type * as migrations_seedLegacyUser from "../migrations/seedLegacyUser.js";
 import type * as org_invites from "../org/invites.js";
 import type * as org_settings from "../org/settings.js";
 import type * as org_team from "../org/team.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailRefs": typeof lib_emailRefs;
   "lib/helpers": typeof lib_helpers;
   "lib/syncRefs": typeof lib_syncRefs;
+  "migrations/seedLegacyUser": typeof migrations_seedLegacyUser;
   "org/invites": typeof org_invites;
   "org/settings": typeof org_settings;
   "org/team": typeof org_team;

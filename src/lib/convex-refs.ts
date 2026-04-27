@@ -37,7 +37,13 @@ export const shopsGetSyncLogRef = "shops:getSyncLog" as unknown as Q<
   Doc<"syncLog">[]
 >;
 export const shopsAddRef = "shops:add" as unknown as Mut<
-  { name: string; apiKey: string; enabledCategories?: string[] },
+  {
+    orgId: Id<"organizations">;
+    marketplace: "wb" | "ozon";
+    name: string;
+    apiKey: string;
+    ozonClientId?: string;
+  },
   Id<"shops">
 >;
 export const shopsRemoveRef = "shops:remove" as unknown as Mut<{

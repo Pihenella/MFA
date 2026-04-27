@@ -114,10 +114,8 @@ export default defineSchema({
     .index("by_user", ["userId"]),
 
   shops: defineTable({
-    orgId: v.optional(v.id("organizations")),
-    marketplace: v.optional(
-      v.union(v.literal("wb"), v.literal("ozon"))
-    ),
+    orgId: v.id("organizations"),
+    marketplace: v.union(v.literal("wb"), v.literal("ozon")),
     name: v.string(),
     apiKey: v.string(),
     ozonClientId: v.optional(v.string()),

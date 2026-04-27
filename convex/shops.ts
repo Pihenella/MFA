@@ -15,13 +15,19 @@ export const listInternal = internalQuery({
 
 export const add = mutation({
   args: {
+    orgId: v.id("organizations"),
+    marketplace: v.union(v.literal("wb"), v.literal("ozon")),
     name: v.string(),
     apiKey: v.string(),
+    ozonClientId: v.optional(v.string()),
   },
-  handler: async (ctx, { name, apiKey }) => {
+  handler: async (ctx, { orgId, marketplace, name, apiKey, ozonClientId }) => {
     return await ctx.db.insert("shops", {
+      orgId,
+      marketplace,
       name,
       apiKey,
+      ozonClientId,
       isActive: true,
       lastSyncAt: undefined,
     });
