@@ -1,15 +1,22 @@
 import { action, internalMutation, internalQuery } from "../_generated/server";
 import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
-import { Id } from "../_generated/dataModel";
+import { Id, Doc } from "../_generated/dataModel";
 import { tokensEqual, validatePassword } from "../../src/lib/auth-utils";
+import {
+  createAccount,
+  modifyAccountCredentials,
+} from "@convex-dev/auth/server";
 
 // Pre-resolved refs обходят TS2589
 const lookupResetTokenRef = "auth/resetPassword:lookupResetToken" as unknown as FunctionReference<
   "query",
   "internal",
   { token: string },
-  { tokenRecordId: Id<"resetTokens">; userId: Id<"users">; email: string } | null
+  {
+    tokenRecordId: Id<"resetTokens">;
+    user: Doc<"users">;
+  } | null
 >;
 const consumeResetTokenRef = "auth/resetPassword:consumeResetToken" as unknown as FunctionReference<
   "mutation",
@@ -31,8 +38,7 @@ export const lookupResetToken = internalQuery({
     if (!user) return null;
     return {
       tokenRecordId: record._id,
-      userId: user._id,
-      email: user.email ?? "",
+      user,
     };
   },
 });
@@ -56,13 +62,36 @@ export const resetPassword = action({
     const lookup = await ctx.runQuery(lookupResetTokenRef, { token });
     if (!lookup) throw new Error("Невалидный или истёкший токен");
 
-    // Смена пароля идёт через Convex Auth signIn("password",
-    // {flow: "reset-verification", email, code: <token>, newPassword}) на
-    // клиенте. Здесь только освобождаем reset-token, чтобы он не мог быть
-    // переиспользован.
+    const { user } = lookup;
+    const email = user.email ?? "";
+    if (!email) throw new Error("У юзера нет email");
+
+    // Сначала пытаемся обновить креды существующего authAccount.
+    try {
+      await modifyAccountCredentials(ctx, {
+        provider: "password",
+        account: { id: email, secret: newPassword },
+      });
+    } catch {
+      // authAccount нет (legacy-юзер из A.1 миграции) — создаём account
+      // и связываем с существующим user через email-link.
+      const profile: Record<string, unknown> = {};
+      for (const [k, val] of Object.entries(user)) {
+        if (k === "_id" || k === "_creationTime") continue;
+        profile[k] = val;
+      }
+      await createAccount(ctx, {
+        provider: "password",
+        account: { id: email, secret: newPassword },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        profile: profile as any,
+        shouldLinkViaEmail: true,
+      });
+    }
+
     await ctx.runMutation(consumeResetTokenRef, {
       tokenRecordId: lookup.tokenRecordId,
     });
-    return { ok: true, userId: lookup.userId };
+    return { ok: true, userId: user._id };
   },
 });
