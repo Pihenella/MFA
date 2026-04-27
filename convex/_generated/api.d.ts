@@ -28,6 +28,7 @@ import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_syncRefs from "../lib/syncRefs.js";
 import type * as migrations_seedLegacyUser from "../migrations/seedLegacyUser.js";
 import type * as org_invites from "../org/invites.js";
+import type * as org_me from "../org/me.js";
 import type * as org_settings from "../org/settings.js";
 import type * as org_team from "../org/team.js";
 import type * as shops from "../shops.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   "lib/syncRefs": typeof lib_syncRefs;
   "migrations/seedLegacyUser": typeof migrations_seedLegacyUser;
   "org/invites": typeof org_invites;
+  "org/me": typeof org_me;
   "org/settings": typeof org_settings;
   "org/team": typeof org_team;
   shops: typeof shops;

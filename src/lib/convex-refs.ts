@@ -32,6 +32,10 @@ export const shopsListRef = "shops:list" as unknown as Q<
   Record<string, never>,
   Doc<"shops">[]
 >;
+export const shopsListMineRef = "shops:listMine" as unknown as Q<
+  Record<string, never>,
+  Doc<"shops">[]
+>;
 export const shopsGetSyncLogRef = "shops:getSyncLog" as unknown as Q<
   { shopId?: Id<"shops"> },
   Doc<"syncLog">[]
@@ -193,4 +197,15 @@ export const fetchAnalyticsRef = "actions:fetchAnalytics" as unknown as Act<
 export const triggerSyncRef = "actions:triggerSync" as unknown as Act<
   { shopId: Id<"shops">; categories?: string[] },
   unknown
+>;
+
+// ───────────────── orgs
+export const orgListMineRef = "org/me:listMine" as unknown as Q<
+  Record<string, never>,
+  Array<{
+    orgId: Id<"organizations">;
+    name: string;
+    role: "owner" | "member";
+    ownerId: Id<"users">;
+  }>
 >;

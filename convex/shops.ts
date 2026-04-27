@@ -1,9 +1,24 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { ensureApproved, listUserShopIds } from "./lib/helpers";
 
+/** @deprecated Use shops.listMine. Удалится в A.3 после миграции UI. */
 export const list = query({
   handler: async (ctx) => {
-    return await ctx.db.query("shops").collect();
+    await ensureApproved(ctx);
+    const shopIds = await listUserShopIds(ctx);
+    const shops = await Promise.all(shopIds.map((id) => ctx.db.get(id)));
+    return shops.filter((s): s is NonNullable<typeof s> => s !== null);
+  },
+});
+
+export const listMine = query({
+  args: {},
+  handler: async (ctx) => {
+    await ensureApproved(ctx);
+    const shopIds = await listUserShopIds(ctx);
+    const shops = await Promise.all(shopIds.map((id) => ctx.db.get(id)));
+    return shops.filter((s): s is NonNullable<typeof s> => s !== null);
   },
 });
 
