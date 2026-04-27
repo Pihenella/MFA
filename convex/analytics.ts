@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { ensureShopAccess, listUserShopIds } from "./lib/helpers";
 
 const GROUP_BY = v.union(
   v.literal("article"),
@@ -80,9 +81,17 @@ export const getSalesAnalytics = query({
     groupBy: GROUP_BY,
   },
   handler: async (ctx, { shopId, dateFrom, dateTo, groupBy }) => {
-    const shops = await ctx.db.query("shops").collect();
-    const shopMap = new Map(shops.map((s) => [s._id as string, s.name]));
-    const active = shopId ? shops.filter((s) => s._id === shopId) : shops;
+    let userShopIds: Awaited<ReturnType<typeof listUserShopIds>>;
+    if (shopId) {
+      await ensureShopAccess(ctx, shopId);
+      userShopIds = [shopId];
+    } else {
+      userShopIds = await listUserShopIds(ctx);
+      if (userShopIds.length === 0) return [];
+    }
+    const allShops = await Promise.all(userShopIds.map((id) => ctx.db.get(id)));
+    const active = allShops.filter((s): s is NonNullable<typeof s> => s !== null);
+    const shopMap = new Map(active.map((s) => [s._id as string, s.name]));
 
     // Fetch data in parallel
     const [financials, orders, nmReports, allCosts, allCards] = await Promise.all([
