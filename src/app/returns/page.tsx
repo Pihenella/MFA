@@ -1,7 +1,7 @@
 "use client";
+import { shopsListRef, getReturnsRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, subDays } from "date-fns";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
@@ -13,14 +13,14 @@ const PREV_END = format(subDays(new Date(), 30), "yyyy-MM-dd");
 const PREV_START = format(subDays(new Date(), 59), "yyyy-MM-dd");
 
 export default function ReturnsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
   const [period, setPeriod] = useState({ from: MONTH_AGO, to: TODAY });
   const [comparePeriod, setComparePeriod] = useState({ from: PREV_START, to: PREV_END });
 
-  const returns = useQuery(api.dashboard.getReturns, {
+  const returns = useQuery(getReturnsRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,

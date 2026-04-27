@@ -1,7 +1,7 @@
 "use client";
+import { shopsListRef, getFeedbacksRef, getQuestionsRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, subDays } from "date-fns";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
@@ -30,7 +30,7 @@ function Stars({ count }: { count: number }) {
 }
 
 export default function FeedbacksPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
@@ -41,13 +41,13 @@ export default function FeedbacksPage() {
   const [filterAnswered, setFilterAnswered] = useState<"all" | "answered" | "unanswered">("all");
   const [filterRating, setFilterRating] = useState<number | null>(null);
 
-  const feedbacks = useQuery(api.dashboard.getFeedbacks, {
+  const feedbacks = useQuery(getFeedbacksRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
 
-  const questions = useQuery(api.dashboard.getQuestions, {
+  const questions = useQuery(getQuestionsRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,

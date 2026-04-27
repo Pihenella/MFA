@@ -1,8 +1,21 @@
 import { action, internalMutation, internalQuery } from "../_generated/server";
-import { internal } from "../_generated/api";
+import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { tokensEqual, validatePassword } from "../../src/lib/auth-utils";
+
+// Pre-resolved refs обходят TS2589
+const lookupResetTokenRef = "auth/resetPassword:lookupResetToken" as unknown as FunctionReference<
+  "query",
+  "internal",
+  { token: string },
+  { tokenRecordId: Id<"resetTokens">; userId: Id<"users">; email: string } | null
+>;
+const consumeResetTokenRef = "auth/resetPassword:consumeResetToken" as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  { tokenRecordId: Id<"resetTokens"> }
+>;
 
 export const lookupResetToken = internalQuery({
   args: { token: v.string() },
@@ -40,18 +53,14 @@ export const resetPassword = action({
     const pwCheck = validatePassword(newPassword);
     if (!pwCheck.ok) throw new Error(pwCheck.error);
 
-    const lookup = await ctx.runQuery(
-      internal.auth.resetPassword.lookupResetToken,
-      { token }
-    );
+    const lookup = await ctx.runQuery(lookupResetTokenRef, { token });
     if (!lookup) throw new Error("Невалидный или истёкший токен");
 
-    // Менять пароль через Convex Auth — frontend вызывает signIn("password",
-    // {flow: "reset-verification", email, code: <reset-token>, newPassword})
-    // ИЛИ мы здесь делаем удаление токена и возвращаем userId, а смена
-    // пароля происходит через resetVerify ниже. В текущей реализации
-    // используем второй подход — клиент обрабатывает это через signIn.
-    await ctx.runMutation(internal.auth.resetPassword.consumeResetToken, {
+    // Смена пароля идёт через Convex Auth signIn("password",
+    // {flow: "reset-verification", email, code: <token>, newPassword}) на
+    // клиенте. Здесь только освобождаем reset-token, чтобы он не мог быть
+    // переиспользован.
+    await ctx.runMutation(consumeResetTokenRef, {
       tokenRecordId: lookup.tokenRecordId,
     });
     return { ok: true, userId: lookup.userId };

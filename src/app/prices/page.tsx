@@ -1,7 +1,7 @@
 "use client";
+import { shopsListRef, getCostsRef, getPricesRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Search, ArrowUp, ArrowDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -16,12 +16,12 @@ function fmt(val: number, unit?: string): string {
 }
 
 export default function PricesPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  const shops = useQuery(shopsListRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
-  const prices = useQuery(api.dashboard.getPrices, { shopId }) ?? [];
-  const costs = useQuery(api.dashboard.getCosts, { shopId }) ?? [];
+  const prices = useQuery(getPricesRef, { shopId }) ?? [];
+  const costs = useQuery(getCostsRef, { shopId }) ?? [];
 
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("nmId");

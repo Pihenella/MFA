@@ -1,11 +1,20 @@
 import { action, internalMutation } from "../_generated/server";
-import { internal } from "../_generated/api";
+import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
 import {
   generateRandomToken,
   normalizeEmail,
   validateEmail,
 } from "../../src/lib/auth-utils";
+import { sendResetRef } from "../lib/emailRefs";
+
+// Pre-resolved ref обходит TS2589
+const createResetTokenRef = "auth/forgotPassword:createResetToken" as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  { email: string },
+  { email: string; name: string; token: string } | null
+>;
 
 export const createResetToken = internalMutation({
   args: { email: v.string() },
@@ -35,13 +44,12 @@ export const forgotPassword = action({
     if (!validateEmail(normalized).ok) {
       return { ok: true };
     }
-    const result = await ctx.runMutation(
-      internal.auth.forgotPassword.createResetToken,
-      { email: normalized }
-    );
+    const result = await ctx.runMutation(createResetTokenRef, {
+      email: normalized,
+    });
     if (result) {
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      await ctx.runAction(internal.email.actions.sendReset, {
+      await ctx.runAction(sendResetRef, {
         email: result.email,
         name: result.name,
         resetUrl: `${appUrl}/reset-password?token=${result.token}`,

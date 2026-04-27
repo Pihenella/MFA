@@ -9,6 +9,7 @@
  */
 
 import type * as actions from "../actions.js";
+import type * as admin_users from "../admin/users.js";
 import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as auth_forgotPassword from "../auth/forgotPassword.js";
@@ -22,6 +23,7 @@ import type * as email_rateLimit from "../email/rateLimit.js";
 import type * as email_resend from "../email/resend.js";
 import type * as financials from "../financials.js";
 import type * as http from "../http.js";
+import type * as lib_emailRefs from "../lib/emailRefs.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as shops from "../shops.js";
 import type * as sync from "../sync.js";
@@ -44,6 +46,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   actions: typeof actions;
+  "admin/users": typeof admin_users;
   analytics: typeof analytics;
   auth: typeof auth;
   "auth/forgotPassword": typeof auth_forgotPassword;
@@ -57,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "email/resend": typeof email_resend;
   financials: typeof financials;
   http: typeof http;
+  "lib/emailRefs": typeof lib_emailRefs;
   "lib/helpers": typeof lib_helpers;
   shops: typeof shops;
   sync: typeof sync;
