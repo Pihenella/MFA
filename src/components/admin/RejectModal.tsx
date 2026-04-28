@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { FinlyButton, FinlyCard } from "@/components/finly";
 
 export function RejectModal({
   userName,
@@ -15,24 +15,33 @@ export function RejectModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Отклонить заявку — {userName}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scroll-ink/60 px-4">
+      <FinlyCard
+        accent="flame"
+        className="w-full max-w-md space-y-4 bg-popover shadow-rune"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reject-user-title"
+      >
+        <h2 id="reject-user-title" className="font-display text-xl font-semibold">
+          Отклонить заявку — {userName}
+        </h2>
         <div className="space-y-1">
           <Label>Причина (опционально)</Label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full border border-gray-300 rounded-md p-2 text-sm min-h-[80px]"
+            className="min-h-[96px] w-full rounded-md border border-input bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Например: не соответствует профилю"
           />
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel} disabled={submitting}>
+          <FinlyButton variant="ghost" onClick={onCancel} disabled={submitting}>
             Отмена
-          </Button>
-          <Button
-            variant="destructive"
+          </FinlyButton>
+          <FinlyButton
+            variant="ghost"
+            className="text-rune-danger"
             onClick={async () => {
               setSubmitting(true);
               try {
@@ -44,9 +53,9 @@ export function RejectModal({
             disabled={submitting}
           >
             {submitting ? "Отклоняем…" : "Отклонить"}
-          </Button>
+          </FinlyButton>
         </div>
-      </div>
+      </FinlyCard>
     </div>
   );
 }

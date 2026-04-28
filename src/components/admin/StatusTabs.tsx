@@ -27,19 +27,20 @@ export function StatusTabs({
 }) {
   const count = (k: Status) => (k === "all" ? counts.total : counts[k]);
   return (
-    <div className="flex gap-1 border-b border-gray-200">
+    <div className="flex flex-wrap gap-1 rounded-frame border border-border bg-card p-1">
       {TABS.map((t) => (
         <button
           key={t.key}
+          type="button"
           onClick={() => onChange(t.key)}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            "rounded-sm px-4 py-2 text-sm font-medium transition-colors",
             active === t.key
-              ? "border-violet-600 text-violet-700"
-              : "border-transparent text-gray-600 hover:text-gray-900"
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           )}
         >
-          {t.label} <span className="text-gray-400">({count(t.key)})</span>
+          {t.label} <span className="text-muted-foreground">({count(t.key)})</span>
         </button>
       ))}
     </div>

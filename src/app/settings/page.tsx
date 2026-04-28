@@ -1,17 +1,50 @@
 "use client";
 import { AuthGate } from "@/components/auth/AuthGate";
-import { shopsListMineRef, shopsGetSyncLogRef, shopsAddRef, shopsRemoveRef, shopsUpdateCategoriesRef, triggerSyncRef } from "@/lib/convex-refs";
+import {
+  shopsListMineRef,
+  shopsGetSyncLogRef,
+  shopsAddRef,
+  shopsRemoveRef,
+  shopsUpdateCategoriesRef,
+  triggerSyncRef,
+  usersUpdateMonthlyProfitGoalRef,
+} from "@/lib/convex-refs";
 import { useQuery, useMutation, useAction } from "convex/react";
-import { Id } from "../../../convex/_generated/dataModel";
-import { Suspense, useState } from "react";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
-import { Button } from "@/components/ui/button";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import {
+  FinlyBadge,
+  FinlyButton,
+  FinlyCard,
+  FinlyEmptyState,
+  TavernToggle,
+  ThemeToggle,
+} from "@/components/finly";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Trash2, RefreshCw, ChevronDown, ChevronUp, Info } from "lucide-react";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Palette,
+  Plus,
+  RefreshCw,
+  Save,
+  Store,
+  Target,
+  Trash2,
+  User,
+} from "lucide-react";
 
 const ALL_ENDPOINTS = [
   "orders", "sales", "stocks", "financials", "campaigns",
@@ -34,6 +67,20 @@ const DEFAULT_CATEGORIES = [
   "content", "feedbacks", "prices", "returns", "tariffs",
 ];
 
+const fieldClassName =
+  "rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
+
+type Shop = Doc<"shops">;
+
+function formatDate(ms: number | undefined) {
+  if (!ms) return "Ещё не синхронизирован";
+  return `Синхронизирован: ${new Date(ms).toLocaleString("ru-RU")}`;
+}
+
+function marketplaceLabel(marketplace: Shop["marketplace"]) {
+  return marketplace === "wb" ? "Wildberries" : "Ozon";
+}
+
 function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
   const logs = useQuery(shopsGetSyncLogRef, { shopId }) ?? [];
   const [expanded, setExpanded] = useState(false);
@@ -50,49 +97,51 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
   if (latestByEndpoint.size === 0) return null;
 
   return (
-    <div className="mt-3 border-t pt-3">
-      <div className="flex flex-wrap gap-2 items-center">
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="flex flex-wrap gap-2">
         {ALL_ENDPOINTS.map((ep) => {
           const log = latestByEndpoint.get(ep);
-          if (!log) return (
-            <Badge key={ep} variant="outline" className="text-gray-400">
-              {ep}: нет данных
-            </Badge>
-          );
+          if (!log) {
+            return (
+              <FinlyBadge key={ep} tone="muted">
+                {ep}: нет данных
+              </FinlyBadge>
+            );
+          }
           return (
-            <Badge
+            <FinlyBadge
               key={ep}
-              variant={log.status === "ok" ? "default" : "destructive"}
-              className={log.status === "ok" ? "bg-green-600" : ""}
+              tone={log.status === "ok" ? "success" : "danger"}
             >
               {ep}: {log.status === "ok" ? "OK" : "Ошибка"}
-            </Badge>
+            </FinlyBadge>
           );
         })}
       </div>
       {hasErrors && (
-        <div className="mt-2">
-          <Button
+        <div className="mt-3">
+          <FinlyButton
             variant="ghost"
             size="sm"
-            className="text-xs text-gray-500 p-0 h-auto"
+            className="h-auto px-0 py-0 text-xs text-muted-foreground"
             onClick={() => setExpanded(!expanded)}
           >
-            {expanded ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+            {expanded ? <ChevronUp className="mr-1 h-3 w-3" /> : <ChevronDown className="mr-1 h-3 w-3" />}
             Подробности
-          </Button>
+          </FinlyButton>
           {expanded && (
-            <div className="mt-2 space-y-1 text-xs text-gray-600">
+            <div className="mt-2 space-y-2 text-xs text-muted-foreground">
               {logs
                 .filter((l) => l.status === "error")
                 .slice(0, 10)
                 .map((l) => (
-                  <div key={l._id} className="bg-red-50 border border-red-200 rounded p-2">
-                    <span className="font-medium">{l.endpoint}</span>{" "}
-                    <span className="text-gray-400">
-                      {new Date(l.syncedAt).toLocaleString("ru")}
-                    </span>
-                    <div className="text-red-600 mt-0.5">{l.error}</div>
+                  <div
+                    key={l._id}
+                    className="rounded-frame border border-rune-danger/30 bg-rune-danger/10 p-3"
+                  >
+                    <span className="font-medium text-foreground">{l.endpoint}</span>{" "}
+                    <span>{new Date(l.syncedAt).toLocaleString("ru-RU")}</span>
+                    <div className="mt-1 text-rune-danger">{l.error}</div>
                   </div>
                 ))}
             </div>
@@ -107,6 +156,10 @@ function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current:
   const updateCategories = useMutation(shopsUpdateCategoriesRef);
   const [categories, setCategories] = useState<string[]>(current);
 
+  useEffect(() => {
+    setCategories(current);
+  }, [current]);
+
   const toggle = async (catId: string) => {
     const next = categories.includes(catId)
       ? categories.filter((c) => c !== catId)
@@ -116,21 +169,26 @@ function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current:
   };
 
   return (
-    <div className="mt-3 border-t pt-3">
-      <div className="text-xs font-medium text-gray-500 mb-2">Категории API для синхронизации:</div>
-      <div className="grid grid-cols-2 gap-2">
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+        Категории API для синхронизации
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
         {CATEGORIES.map((cat) => (
-          <label key={cat.id} className="flex items-start gap-2 text-sm cursor-pointer hover:bg-gray-50 rounded p-1.5">
+          <label
+            key={cat.id}
+            className="flex cursor-pointer items-start gap-2 rounded-frame border border-border bg-background/60 p-2 text-sm transition-colors hover:bg-muted/50"
+          >
             <input
               type="checkbox"
               checked={categories.includes(cat.id)}
               onChange={() => toggle(cat.id)}
-              className="mt-0.5 accent-violet-600"
+              className="mt-0.5 size-4 accent-primary"
             />
-            <div>
-              <div className="font-medium">{cat.label}</div>
-              <div className="text-xs text-gray-400">{cat.description}</div>
-            </div>
+            <span>
+              <span className="block font-medium text-foreground">{cat.label}</span>
+              <span className="block text-xs text-muted-foreground">{cat.description}</span>
+            </span>
           </label>
         ))}
       </div>
@@ -138,9 +196,250 @@ function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current:
   );
 }
 
+function AddShopDialog({
+  marketplace,
+  setMarketplace,
+  name,
+  setName,
+  apiKey,
+  setApiKey,
+  ozonClientId,
+  setOzonClientId,
+  disabled,
+  onCancel,
+  onConfirm,
+}: {
+  marketplace: "wb" | "ozon";
+  setMarketplace: (marketplace: "wb" | "ozon") => void;
+  name: string;
+  setName: (name: string) => void;
+  apiKey: string;
+  setApiKey: (apiKey: string) => void;
+  ozonClientId: string;
+  setOzonClientId: (clientId: string) => void;
+  disabled: boolean;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scroll-ink/60 px-4">
+      <FinlyCard
+        accent="teal"
+        className="w-full max-w-lg bg-popover shadow-rune"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-shop-title"
+      >
+        <form
+          className="space-y-4"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setSubmitting(true);
+            try {
+              await onConfirm();
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+        >
+          <div>
+            <h2 id="add-shop-title" className="font-display text-xl font-semibold">
+              Добавить магазин
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Подключите API-ключ и выберите категории данных для синхронизации после создания.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Маркетплейс</Label>
+            <select
+              value={marketplace}
+              onChange={(e) => setMarketplace(e.target.value as "wb" | "ozon")}
+              className={`${fieldClassName} w-full`}
+            >
+              <option value="wb">Wildberries</option>
+              <option value="ozon">Ozon</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label>Название</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={marketplace === "wb" ? "Мой магазин WB" : "Мой магазин Ozon"}
+            />
+          </div>
+          {marketplace === "ozon" && (
+            <div className="space-y-1">
+              <Label>Ozon Client ID</Label>
+              <Input
+                value={ozonClientId}
+                onChange={(e) => setOzonClientId(e.target.value)}
+                placeholder="123456"
+              />
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label>{marketplace === "wb" ? "API ключ Wildberries" : "Ozon API key"}</Label>
+            <Input
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="eyJhb..."
+              type="password"
+            />
+          </div>
+          <div className="flex items-start gap-2 rounded-frame border border-murloc-teal/30 bg-murloc-teal/10 p-3 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-murloc-teal" />
+            <span>
+              {marketplace === "wb" ? (
+                <>Создайте один ключ со всеми разрешениями в{" "}
+                <span className="font-medium text-foreground">ЛК WB &gt; Настройки &gt; Доступ к API</span>.</>
+              ) : (
+                <>Получите Client ID и API key в{" "}
+                <span className="font-medium text-foreground">ЛК Ozon Seller &gt; Настройки &gt; API</span>.</>
+              )}
+            </span>
+          </div>
+          <div className="flex justify-end gap-2">
+            <FinlyButton
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              disabled={submitting}
+            >
+              Отмена
+            </FinlyButton>
+            <FinlyButton type="submit" disabled={disabled || submitting}>
+              <Plus className="mr-2 h-4 w-4" />
+              {submitting ? "Добавляем…" : "Добавить"}
+            </FinlyButton>
+          </div>
+        </form>
+      </FinlyCard>
+    </div>
+  );
+}
+
+function ProfileTab() {
+  const me = useCurrentUser();
+
+  if (!me) {
+    return <div className="py-10 text-center text-muted-foreground">Загрузка…</div>;
+  }
+
+  return (
+    <FinlyCard accent="gold" className="space-y-4">
+      <div>
+        <h2 className="font-display text-xl font-semibold">Профиль</h2>
+        <p className="text-sm text-muted-foreground">
+          Основные данные аккаунта, с которыми работает Finly.
+        </p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label>Имя</Label>
+          <Input value={me.name || "—"} readOnly />
+        </div>
+        <div className="space-y-1">
+          <Label>Email</Label>
+          <Input value={me.email || "—"} readOnly />
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <Label>Бизнес</Label>
+          <Input value={me.businessName || "—"} readOnly />
+        </div>
+      </div>
+    </FinlyCard>
+  );
+}
+
+function ProfitGoalTab() {
+  const me = useCurrentUser();
+  const updateMonthlyProfitGoal = useMutation(usersUpdateMonthlyProfitGoalRef);
+  const [goal, setGoal] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (me) setGoal(me.monthlyProfitGoal === null ? "" : String(me.monthlyProfitGoal));
+  }, [me]);
+
+  if (!me) {
+    return <div className="py-10 text-center text-muted-foreground">Загрузка…</div>;
+  }
+
+  const parsedGoal = goal.trim() === "" ? null : Number(goal.replace(",", "."));
+  const isInvalid =
+    parsedGoal !== null && (!Number.isFinite(parsedGoal) || parsedGoal < 0);
+  const current = me.monthlyProfitGoal ?? null;
+  const hasChanges = parsedGoal !== current;
+
+  return (
+    <FinlyCard accent="teal" className="space-y-4">
+      <div>
+        <h2 className="font-display text-xl font-semibold">Цель прибыли</h2>
+        <p className="text-sm text-muted-foreground">
+          Месячная цель используется для прогресса на дашборде и будущих достижений.
+        </p>
+      </div>
+      <form
+        className="max-w-md space-y-3"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (isInvalid) return;
+          setSubmitting(true);
+          setSaved(false);
+          setError(null);
+          try {
+            await updateMonthlyProfitGoal({ monthlyProfitGoal: parsedGoal });
+            setSaved(true);
+          } catch (err) {
+            setError((err as Error).message || "Ошибка сохранения");
+          } finally {
+            setSubmitting(false);
+          }
+        }}
+      >
+        <div className="space-y-1">
+          <Label>Цель в месяц, ₽</Label>
+          <Input
+            type="number"
+            min="0"
+            step="1000"
+            inputMode="decimal"
+            value={goal}
+            onChange={(e) => {
+              setGoal(e.target.value);
+              setSaved(false);
+            }}
+            placeholder="500000"
+          />
+        </div>
+        {isInvalid ? (
+          <p className="text-sm text-rune-danger">Введите число больше или равное 0.</p>
+        ) : null}
+        {error ? <p className="text-sm text-rune-danger">{error}</p> : null}
+        {saved ? <p className="text-sm text-rune-success">Сохранено.</p> : null}
+        <FinlyButton
+          type="submit"
+          disabled={submitting || isInvalid || !hasChanges}
+        >
+          <Save className="mr-2 h-4 w-4" />
+          {submitting ? "Сохраняем…" : "Сохранить цель"}
+        </FinlyButton>
+      </form>
+    </FinlyCard>
+  );
+}
+
 function SettingsPageInner() {
   const search = useSearchParams();
   const initialMarketplace = (search.get("marketplace") ?? "wb") as "wb" | "ozon";
+  const initialTab = search.get("marketplace") ? "shops" : "profile";
   const shops = useQuery(shopsListMineRef) ?? [];
   const currentOrg = useCurrentOrg();
   const addShop = useMutation(shopsAddRef);
@@ -151,22 +450,28 @@ function SettingsPageInner() {
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [ozonClientId, setOzonClientId] = useState("");
+  const [shopDialogOpen, setShopDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState<Id<"shops"> | null>(null);
   const [syncScheduled, setSyncScheduled] = useState<Id<"shops"> | null>(null);
 
-  const handleAdd = async () => {
-    if (!name || !apiKey || !currentOrg) return;
-    if (marketplace === "ozon" && !ozonClientId) return;
-    await addShop({
-      orgId: currentOrg.orgId,
-      marketplace,
-      name,
-      apiKey,
-      ozonClientId: marketplace === "ozon" ? ozonClientId : undefined,
-    });
+  const resetShopForm = () => {
     setName("");
     setApiKey("");
     setOzonClientId("");
+  };
+
+  const handleAdd = async () => {
+    if (!name.trim() || !apiKey.trim() || !currentOrg) return;
+    if (marketplace === "ozon" && !ozonClientId.trim()) return;
+    await addShop({
+      orgId: currentOrg.orgId,
+      marketplace,
+      name: name.trim(),
+      apiKey: apiKey.trim(),
+      ozonClientId: marketplace === "ozon" ? ozonClientId.trim() : undefined,
+    });
+    resetShopForm();
+    setShopDialogOpen(false);
   };
 
   const handleSync = async (shopId: Id<"shops">) => {
@@ -174,114 +479,194 @@ function SettingsPageInner() {
     try {
       await triggerSync({ shopId });
       setSyncScheduled(shopId);
-      setTimeout(() => setSyncScheduled(null), 600_000); // 10 мин
+      setTimeout(() => setSyncScheduled(null), 600_000);
     } finally {
       setSyncing(null);
     }
   };
 
-  return (
-    <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Настройки магазинов</h1>
+  const shopFormDisabled =
+    !currentOrg ||
+    !name.trim() ||
+    !apiKey.trim() ||
+    (marketplace === "ozon" && !ozonClientId.trim());
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Добавить магазин</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <Label>Маркетплейс</Label>
-            <select
-              value={marketplace}
-              onChange={(e) => setMarketplace(e.target.value as "wb" | "ozon")}
-              className="border rounded-md px-3 py-2 text-sm w-full"
-            >
-              <option value="wb">Wildberries</option>
-              <option value="ozon">Ozon</option>
-            </select>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Настройки
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Аккаунт, магазины, тема и рабочие цели.
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue={initialTab} className="space-y-6">
+        <TabsList className="h-auto w-full flex-wrap justify-start rounded-frame border border-border bg-card p-1">
+          <TabsTrigger value="profile" className="gap-2">
+            <User className="h-4 w-4" /> Профиль
+          </TabsTrigger>
+          <TabsTrigger value="shops" className="gap-2">
+            <Store className="h-4 w-4" /> Магазины
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2">
+            <Bell className="h-4 w-4" /> Уведомления
+          </TabsTrigger>
+          <TabsTrigger value="theme" className="gap-2">
+            <Palette className="h-4 w-4" /> Тема
+          </TabsTrigger>
+          <TabsTrigger value="profit-goal" className="gap-2">
+            <Target className="h-4 w-4" /> Цель прибыли
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profile">
+          <ProfileTab />
+        </TabsContent>
+
+        <TabsContent value="shops" className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold">Магазины</h2>
+              <p className="text-sm text-muted-foreground">
+                Подключения маркетплейсов и категории API для синхронизации.
+              </p>
+            </div>
+            <FinlyButton onClick={() => setShopDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Добавить магазин
+            </FinlyButton>
           </div>
-          <div className="space-y-1">
-            <Label>Название</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={marketplace === "wb" ? "Мой магазин WB" : "Мой магазин Ozon"} />
-          </div>
-          {marketplace === "ozon" && (
-            <div className="space-y-1">
-              <Label>Ozon Client ID</Label>
-              <Input value={ozonClientId} onChange={(e) => setOzonClientId(e.target.value)} placeholder="123456" />
+
+          {shops.length === 0 ? (
+            <FinlyCard accent="gold" className="p-0">
+              <FinlyEmptyState
+                pose="empty-shops"
+                title="Магазинов пока нет"
+                body="Подключите Wildberries или Ozon, чтобы запустить синхронизацию данных."
+                cta={{ label: "Добавить магазин", onClick: () => setShopDialogOpen(true) }}
+              />
+            </FinlyCard>
+          ) : (
+            <div className="space-y-4">
+              {shops.map((shop) => (
+                <FinlyCard key={shop._id} accent="teal" className="space-y-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-foreground">{shop.name}</h3>
+                        <FinlyBadge tone="info">{marketplaceLabel(shop.marketplace)}</FinlyBadge>
+                        <FinlyBadge tone={shop.isActive ? "success" : "danger"}>
+                          {shop.isActive ? "Активен" : "Отключён"}
+                        </FinlyBadge>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatDate(shop.lastSyncAt)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <FinlyButton
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleSync(shop._id)}
+                        disabled={syncing === shop._id}
+                        title="Запустить синхронизацию"
+                        aria-label="Запустить синхронизацию"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${syncing === shop._id ? "animate-spin" : ""}`} />
+                      </FinlyButton>
+                      <FinlyButton
+                        size="sm"
+                        variant="ghost"
+                        className="text-rune-danger"
+                        onClick={() => {
+                          if (confirm(`Удалить магазин ${shop.name}?`)) {
+                            void removeShop({ id: shop._id });
+                          }
+                        }}
+                        title="Удалить магазин"
+                        aria-label="Удалить магазин"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </FinlyButton>
+                    </div>
+                  </div>
+
+                  {syncScheduled === shop._id && (
+                    <div className="flex items-center gap-2 rounded-frame border border-murloc-teal/30 bg-murloc-teal/10 px-3 py-2 text-xs text-murloc-teal">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Синхронизация запланирована. Данные обновятся в течение 10 минут.
+                    </div>
+                  )}
+
+                  <CategoryCheckboxes
+                    shopId={shop._id}
+                    current={shop.enabledCategories ?? DEFAULT_CATEGORIES}
+                  />
+                  <SyncStatus shopId={shop._id} />
+                </FinlyCard>
+              ))}
             </div>
           )}
-          <div className="space-y-1">
-            <Label>{marketplace === "wb" ? "API ключ Wildberries (все разрешения)" : "Ozon API key"}</Label>
-            <Input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="eyJhb..." type="password" />
-          </div>
-          <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-md p-2.5">
-            <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-            <span>
-              {marketplace === "wb" ? (
-                <>Создайте один ключ со всеми разрешениями в{" "}
-                <span className="font-medium">ЛК WB &rarr; Настройки &rarr; Доступ к API</span>.
-                После добавления магазина выберите нужные категории данных ниже.</>
-              ) : (
-                <>Получите Client ID и API key в{" "}
-                <span className="font-medium">ЛК Ozon Seller &rarr; Настройки &rarr; API</span>.</>
-              )}
-            </span>
-          </div>
-          <Button onClick={handleAdd} disabled={!currentOrg || !name || !apiKey} className="bg-violet-600 hover:bg-violet-700">
-            Добавить
-          </Button>
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <div className="space-y-3">
-        {shops.map((shop) => (
-          <Card key={shop._id}>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{shop.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {shop.lastSyncAt
-                      ? `Синхронизирован: ${new Date(shop.lastSyncAt).toLocaleString("ru")}`
-                      : "Ещё не синхронизирован"}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={shop.isActive ? "default" : "destructive"}>
-                    {shop.isActive ? "Активен" : "Отключён"}
-                  </Badge>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => handleSync(shop._id)}
-                    disabled={syncing === shop._id}
-                  >
-                    <RefreshCw className={`h-4 w-4 ${syncing === shop._id ? "animate-spin" : ""}`} />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    onClick={() => removeShop({ id: shop._id })}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+        <TabsContent value="notifications">
+          <FinlyCard accent="gold" className="p-0">
+            <FinlyEmptyState
+              pose="empty-data"
+              title="Уведомления появятся позже"
+              body="Здесь будут настройки регулярных отчётов, алертов по прибыли и синхронизации."
+            />
+          </FinlyCard>
+        </TabsContent>
+
+        <TabsContent value="theme">
+          <FinlyCard accent="teal" className="space-y-5">
+            <div>
+              <h2 className="font-display text-xl font-semibold">Тема</h2>
+              <p className="text-sm text-muted-foreground">
+                Выберите внешний вид интерфейса и режим таверны.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-frame border border-border bg-background/60 p-4">
+                <div className="mb-3 text-sm font-medium">Оформление</div>
+                <ThemeToggle />
               </div>
-              {syncScheduled === shop._id && (
-                <div className="mt-2 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-2 flex items-center gap-2">
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                  Синхронизация запланирована. Данные обновятся в течение 10 минут.
-                </div>
-              )}
-              <CategoryCheckboxes
-                shopId={shop._id}
-                current={shop.enabledCategories ?? DEFAULT_CATEGORIES}
-              />
-              <SyncStatus shopId={shop._id} />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <div className="rounded-frame border border-border bg-background/60 p-4">
+                <div className="mb-3 text-sm font-medium">Атмосфера</div>
+                <TavernToggle />
+              </div>
+            </div>
+          </FinlyCard>
+        </TabsContent>
+
+        <TabsContent value="profit-goal">
+          <ProfitGoalTab />
+        </TabsContent>
+      </Tabs>
+
+      {shopDialogOpen && (
+        <AddShopDialog
+          marketplace={marketplace}
+          setMarketplace={setMarketplace}
+          name={name}
+          setName={setName}
+          apiKey={apiKey}
+          setApiKey={setApiKey}
+          ozonClientId={ozonClientId}
+          setOzonClientId={setOzonClientId}
+          disabled={shopFormDisabled}
+          onCancel={() => {
+            resetShopForm();
+            setShopDialogOpen(false);
+          }}
+          onConfirm={handleAdd}
+        />
+      )}
     </div>
   );
 }

@@ -5,9 +5,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
 import type { TeamMember } from "@/lib/convex-refs";
+import { FinlyBadge } from "@/components/finly";
 
 export function MemberRow({
   member,
@@ -23,20 +23,23 @@ export function MemberRow({
   onMakeOwner: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between border border-gray-200 rounded-md p-3">
+    <div className="flex items-center justify-between gap-4">
       <div>
-        <div className="font-medium">{member.name || "(без имени)"}</div>
-        <div className="text-sm text-gray-500">{member.email}</div>
+        <div className="font-medium text-foreground">{member.name || "(без имени)"}</div>
+        <div className="text-sm text-muted-foreground">{member.email}</div>
       </div>
       <div className="flex items-center gap-2">
         {member.role === "owner" ? (
-          <Badge>{isSelf ? "Вы — owner" : "Owner"}</Badge>
+          <FinlyBadge tone="gold">{isSelf ? "Вы — owner" : "Owner"}</FinlyBadge>
         ) : (
-          <Badge variant="secondary">Member</Badge>
+          <FinlyBadge tone="info">Member</FinlyBadge>
         )}
         {canManage && member.role === "member" && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="p-1 hover:bg-gray-100 rounded">
+            <DropdownMenuTrigger
+              aria-label="Действия участника"
+              className="rounded-frame p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

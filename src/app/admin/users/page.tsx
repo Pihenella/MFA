@@ -11,7 +11,9 @@ import { AdminGate } from "@/components/auth/AdminGate";
 import { StatusTabs } from "@/components/admin/StatusTabs";
 import { UserCard } from "@/components/admin/UserCard";
 import { RejectModal } from "@/components/admin/RejectModal";
+import { FinlyCard, FinlyEmptyState } from "@/components/finly";
 import { Input } from "@/components/ui/input";
+import { Search, ShieldCheck } from "lucide-react";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 type Status = "pending" | "approved" | "rejected" | "all";
@@ -30,37 +32,58 @@ function AdminUsersInner() {
   const reject = useMutation(adminRejectUserRef);
 
   return (
-    <div className="max-w-screen-lg mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Заявки пользователей</h1>
-        <p className="text-sm text-gray-500">
-          Одобрение / отклонение регистраций. Доступно только администратору.
-        </p>
+    <div className="mx-auto max-w-screen-lg space-y-6">
+      <div className="flex items-start gap-3">
+        <div className="rounded-frame border border-gold-frame/40 bg-gold-frame/10 p-2 text-gold-frame">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Заявки пользователей
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Одобрение и отклонение регистраций. Доступно только администратору.
+          </p>
+        </div>
       </div>
-      <Input
-        placeholder="Поиск по email / имени / телефону"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <StatusTabs
-        active={tab}
-        counts={counts ?? { total: 0, pending: 0, approved: 0, rejected: 0 }}
-        onChange={setTab}
-      />
+
+      <FinlyCard accent="teal" className="space-y-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Поиск по email / имени / телефону"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <StatusTabs
+          active={tab}
+          counts={counts ?? { total: 0, pending: 0, approved: 0, rejected: 0 }}
+          onChange={setTab}
+        />
+      </FinlyCard>
+
       <div className="space-y-3">
         {users === undefined ? (
-          <div className="text-gray-400 py-12 text-center">Загрузка…</div>
+          <div className="py-12 text-center text-muted-foreground">Загрузка…</div>
         ) : users.length === 0 ? (
-          <div className="text-gray-400 py-12 text-center">Пусто</div>
+          <FinlyCard accent="gold" className="p-0">
+            <FinlyEmptyState
+              pose="empty-data"
+              title="Заявок нет"
+              body="Пользователи появятся здесь после регистрации или смены фильтра."
+            />
+          </FinlyCard>
         ) : (
-          users.map((u) => (
+          users.map((user) => (
             <UserCard
-              key={u._id}
-              user={u}
+              key={user._id}
+              user={user}
               onApprove={async () => {
-                await approve({ userId: u._id as Id<"users"> });
+                await approve({ userId: user._id as Id<"users"> });
               }}
-              onReject={() => setRejectTarget(u)}
+              onReject={() => setRejectTarget(user)}
             />
           ))
         )}
