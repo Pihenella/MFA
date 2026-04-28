@@ -1,9 +1,11 @@
 "use client";
+
 import { Suspense, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAction } from "convex/react";
-import { Button } from "@/components/ui/button";
+import { FinlyAuthLayout } from "@/components/finly/FinlyAuthLayout";
+import { FinlyButton } from "@/components/finly/FinlyButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -52,36 +54,64 @@ function ResetPasswordInner() {
 
   if (!token) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center px-4">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-bold text-red-600">Ссылка некорректна</h1>
-          <p className="text-gray-600">Запросите новую ссылку для сброса пароля.</p>
-          <Link href="/forgot-password" className="text-violet-600 hover:underline">К сбросу</Link>
+      <FinlyAuthLayout
+        mascotPose="empty-data"
+        title="Ссылка некорректна"
+        subtitle="Запросите новую ссылку для сброса пароля"
+      >
+        <div className="space-y-4 text-center">
+          <p className="text-muted-foreground">
+            В этой ссылке нет токена восстановления.
+          </p>
+          <Link
+            href="/forgot-password"
+            className="text-sm text-orange-flame hover:underline"
+          >
+            К сбросу пароля
+          </Link>
         </div>
-      </div>
+      </FinlyAuthLayout>
     );
   }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-bold text-center">Новый пароль</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <Label>Новый пароль</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
-          </div>
-          <div className="space-y-1">
-            <Label>Повторите пароль</Label>
-            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} autoComplete="new-password" />
-          </div>
-          {error && <div className="text-sm text-red-600">{error}</div>}
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Сохраняем…" : "Сменить пароль"}
-          </Button>
-        </form>
-      </div>
-    </div>
+    <FinlyAuthLayout
+      mascotPose="empty-data"
+      title="Новый пароль"
+      subtitle="Придумайте новый ключ к карте Finly"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h2 className="mb-2 hidden font-display text-2xl font-semibold text-foreground md:block">
+          Сменить пароль
+        </h2>
+        <div className="space-y-1">
+          <Label>Новый пароль</Label>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Повторите пароль</Label>
+          <Input
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+        </div>
+        {error ? <p className="text-sm text-rune-danger">{error}</p> : null}
+        <FinlyButton type="submit" disabled={submitting} className="w-full">
+          {submitting ? "Сохраняем…" : "Сменить пароль"}
+        </FinlyButton>
+      </form>
+    </FinlyAuthLayout>
   );
 }
 

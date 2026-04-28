@@ -1,22 +1,40 @@
 "use client";
+
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { orgInviteByTokenRef, orgInviteAcceptRef } from "@/lib/convex-refs";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { Button } from "@/components/ui/button";
+import { FinlyAuthLayout } from "@/components/finly/FinlyAuthLayout";
+import { FinlyButton } from "@/components/finly/FinlyButton";
+import { FinlyEmptyState } from "@/components/finly/FinlyEmptyState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { orgInviteAcceptRef, orgInviteByTokenRef } from "@/lib/convex-refs";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type PageProps = { params: Promise<{ token: string }> };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  not_found: "Приглашение не найдено",
-  expired: "Приглашение истекло",
-  revoked: "Приглашение было отозвано",
-  already_accepted: "Приглашение уже принято",
+const ERROR_STATES = {
+  not_found: {
+    pose: "empty-shops" as const,
+    title: "Приглашение не найдено",
+    body: "Попросите owner-а отправить приглашение заново.",
+  },
+  expired: {
+    pose: "empty-shops" as const,
+    title: "Приглашение истекло",
+    body: "Срок действия ссылки закончился. Попросите owner-а отправить новое приглашение.",
+  },
+  revoked: {
+    pose: "not-found" as const,
+    title: "Приглашение отозвано",
+    body: "Эта ссылка больше не открывает дверь в команду.",
+  },
+  already_accepted: {
+    pose: "empty-data" as const,
+    title: "Это приглашение уже использовано",
+    body: "Похоже, команда уже пополнилась. Можно вернуться на главную.",
+  },
 };
 
 export default function InvitePage({ params }: PageProps) {
@@ -37,23 +55,21 @@ export default function InvitePage({ params }: PageProps) {
 
   if (inviteResult === undefined || me === undefined) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400">
+      <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground">
         Загрузка…
       </div>
     );
   }
 
   if (!inviteResult.ok) {
+    const state = ERROR_STATES[inviteResult.error];
     return (
-      <div className="max-w-md mx-auto px-4 py-12 text-center space-y-3">
-        <h1 className="text-xl font-bold">{ERROR_MESSAGES[inviteResult.error]}</h1>
-        <p className="text-sm text-gray-600">
-          Попросите owner-а отправить приглашение заново.
-        </p>
-        <Link href="/login" className="text-violet-600 hover:underline text-sm">
-          На главную
-        </Link>
-      </div>
+      <FinlyEmptyState
+        pose={state.pose}
+        title={state.title}
+        body={state.body}
+        cta={{ label: "На главную", href: "/" }}
+      />
     );
   }
 
@@ -61,53 +77,55 @@ export default function InvitePage({ params }: PageProps) {
 
   if (me && me.email !== inviteEmail) {
     return (
-      <div className="max-w-md mx-auto px-4 py-12 text-center space-y-3">
-        <h1 className="text-xl font-bold">Этот инвайт для другого email</h1>
-        <p className="text-sm text-gray-600">
-          Приглашение отправлено на <strong>{inviteEmail}</strong>, но вы вошли как{" "}
-          <strong>{me.email}</strong>. Выйдите и откройте ссылку под нужным
-          аккаунтом.
-        </p>
-        <Button
-          variant="outline"
-          onClick={async () => {
+      <FinlyEmptyState
+        pose="not-found"
+        title="Не тот email"
+        body={`Это приглашение для ${inviteEmail}, а сейчас вы вошли как ${me.email}. Выйдите и откройте ссылку под нужным аккаунтом.`}
+        cta={{
+          label: "Выйти",
+          onClick: async () => {
             await signOut();
             router.refresh();
-          }}
-        >
-          Выйти
-        </Button>
-      </div>
+          },
+        }}
+      />
     );
   }
 
   if (me && me.email === inviteEmail) {
     return (
-      <div className="max-w-md mx-auto px-4 py-12 text-center space-y-3">
-        <h1 className="text-xl font-bold">Приглашение в {orgName}</h1>
-        <p className="text-sm text-gray-600">
-          {inviterName} приглашает вас присоединиться к организации{" "}
-          <strong>{orgName}</strong>.
-        </p>
-        {error && <div className="text-sm text-red-600">{error}</div>}
-        <Button
-          disabled={submitting}
-          onClick={async () => {
-            setSubmitting(true);
-            setError(null);
-            try {
-              await acceptInvite({ token });
-              router.push("/");
-            } catch (err) {
-              setError((err as Error).message || "Ошибка");
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-        >
-          {submitting ? "Принимаем…" : "Принять приглашение"}
-        </Button>
-      </div>
+      <FinlyAuthLayout
+        mascotPose="hero"
+        title="Приглашение в Лигу"
+        subtitle={`${inviterName} приглашает вас в ${orgName}`}
+      >
+        <div className="space-y-4 text-center">
+          <h2 className="font-display text-2xl font-semibold text-foreground">
+            Приглашение в {orgName}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Присоединиться как <strong>{inviteEmail}</strong>.
+          </p>
+          {error ? <p className="text-sm text-rune-danger">{error}</p> : null}
+          <FinlyButton
+            disabled={submitting}
+            onClick={async () => {
+              setSubmitting(true);
+              setError(null);
+              try {
+                await acceptInvite({ token });
+                router.push("/");
+              } catch (err) {
+                setError((err as Error).message || "Ошибка");
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          >
+            {submitting ? "Принимаем…" : "Принять приглашение"}
+          </FinlyButton>
+        </div>
+      </FinlyAuthLayout>
     );
   }
 
@@ -153,87 +171,93 @@ export default function InvitePage({ params }: PageProps) {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-12 space-y-6">
-      <div className="text-center space-y-1">
-        <h1 className="text-xl font-bold">Приглашение в {orgName}</h1>
-        <p className="text-sm text-gray-600">
-          {inviterName} зовёт вас в команду. Email: <strong>{inviteEmail}</strong>
-        </p>
+    <FinlyAuthLayout
+      mascotPose="hero"
+      title="Приглашение в Лигу"
+      subtitle={`${inviterName} зовёт вас в команду ${orgName}`}
+    >
+      <div className="space-y-5">
+        <div className="text-center">
+          <h2 className="font-display text-2xl font-semibold text-foreground">
+            Приглашение в {orgName}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Email: <strong>{inviteEmail}</strong>
+          </p>
+        </div>
+
+        <details className="space-y-3 rounded-frame border border-border bg-card p-4" open>
+          <summary className="cursor-pointer font-medium text-foreground">
+            У меня нет аккаунта — создать
+          </summary>
+          <form onSubmit={handleSignUp} className="space-y-3 pt-2">
+            <Field label="Email">
+              <Input value={inviteEmail} readOnly className="bg-muted" />
+            </Field>
+            <Field label="Пароль">
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </Field>
+            <Field label="Имя">
+              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            </Field>
+            <Field label="Телефон">
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Название бизнеса (опционально)">
+              <Input
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+              />
+            </Field>
+            <FinlyButton type="submit" disabled={submitting} className="w-full">
+              {submitting ? "Создаём…" : "Создать аккаунт и принять"}
+            </FinlyButton>
+          </form>
+        </details>
+
+        <details className="space-y-3 rounded-frame border border-border bg-card p-4">
+          <summary className="cursor-pointer font-medium text-foreground">
+            У меня уже есть аккаунт — войти
+          </summary>
+          <form onSubmit={handleSignIn} className="space-y-3 pt-2">
+            <Field label="Email">
+              <Input value={inviteEmail} readOnly className="bg-muted" />
+            </Field>
+            <Field label="Пароль">
+              <Input
+                type="password"
+                value={signInPassword}
+                onChange={(e) => setSignInPassword(e.target.value)}
+                required
+              />
+            </Field>
+            <FinlyButton type="submit" disabled={submitting} className="w-full">
+              {submitting ? "Входим…" : "Войти и принять"}
+            </FinlyButton>
+          </form>
+        </details>
+
+        {error ? <p className="text-center text-sm text-rune-danger">{error}</p> : null}
       </div>
+    </FinlyAuthLayout>
+  );
+}
 
-      <details className="border border-gray-200 rounded-md p-4 space-y-3" open>
-        <summary className="font-medium cursor-pointer">
-          У меня нет аккаунта — создать
-        </summary>
-        <form onSubmit={handleSignUp} className="space-y-3 pt-2">
-          <div className="space-y-1">
-            <Label>Email</Label>
-            <Input value={inviteEmail} readOnly className="bg-gray-50" />
-          </div>
-          <div className="space-y-1">
-            <Label>Пароль</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Имя</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Телефон</Label>
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Название бизнеса (опционально)</Label>
-            <Input
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-            />
-          </div>
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Создаём…" : "Создать аккаунт и принять"}
-          </Button>
-        </form>
-      </details>
-
-      <details className="border border-gray-200 rounded-md p-4 space-y-3">
-        <summary className="font-medium cursor-pointer">
-          У меня уже есть аккаунт — войти
-        </summary>
-        <form onSubmit={handleSignIn} className="space-y-3 pt-2">
-          <div className="space-y-1">
-            <Label>Email</Label>
-            <Input value={inviteEmail} readOnly className="bg-gray-50" />
-          </div>
-          <div className="space-y-1">
-            <Label>Пароль</Label>
-            <Input
-              type="password"
-              value={signInPassword}
-              onChange={(e) => setSignInPassword(e.target.value)}
-              required
-            />
-          </div>
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Входим…" : "Войти и принять"}
-          </Button>
-        </form>
-      </details>
-
-      {error && <div className="text-sm text-red-600 text-center">{error}</div>}
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      {children}
     </div>
   );
 }

@@ -1,16 +1,20 @@
 "use client";
+
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
+import { FinlyAuthLayout } from "@/components/finly/FinlyAuthLayout";
+import { FinlyButton } from "@/components/finly/FinlyButton";
 import { verifyEmailRef } from "@/lib/convex-refs";
-import { Button } from "@/components/ui/button";
 
 function VerifyEmailInner() {
   const search = useSearchParams();
   const router = useRouter();
   const verify = useMutation(verifyEmailRef);
   const token = search.get("token");
-  const [state, setState] = useState<"loading" | "ok" | "already" | "err">("loading");
+  const [state, setState] = useState<"loading" | "ok" | "already" | "err">(
+    "loading"
+  );
   const [errMsg, setErrMsg] = useState<string>("");
 
   useEffect(() => {
@@ -28,31 +32,51 @@ function VerifyEmailInner() {
   }, [token, verify]);
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="max-w-md text-center space-y-4">
-        {state === "loading" && <p className="text-gray-500">Подтверждаем email…</p>}
-        {state === "ok" && (
+    <FinlyAuthLayout
+      mascotPose="empty-data"
+      title="Проверка email"
+      subtitle="Сверяем печать на приглашении"
+    >
+      <div className="space-y-4 text-center">
+        {state === "loading" ? (
+          <p className="text-muted-foreground">Подтверждаем email…</p>
+        ) : null}
+        {state === "ok" ? (
           <>
-            <h1 className="text-2xl font-bold text-green-600">Email подтверждён</h1>
-            <p className="text-gray-600">Заявка отправлена на approval. Проверьте позже.</p>
-            <Button onClick={() => router.push("/pending-approval")}>OK</Button>
+            <h2 className="font-display text-2xl font-semibold text-rune-success">
+              Email подтверждён
+            </h2>
+            <p className="text-muted-foreground">
+              Заявка отправлена на approval. Проверьте позже.
+            </p>
+            <FinlyButton onClick={() => router.push("/pending-approval")}>
+              OK
+            </FinlyButton>
           </>
-        )}
-        {state === "already" && (
+        ) : null}
+        {state === "already" ? (
           <>
-            <h1 className="text-2xl font-bold">Email уже подтверждён ранее</h1>
-            <Button onClick={() => router.push("/pending-approval")}>Продолжить</Button>
+            <h2 className="font-display text-2xl font-semibold text-foreground">
+              Email уже подтверждён ранее
+            </h2>
+            <FinlyButton onClick={() => router.push("/pending-approval")}>
+              Продолжить
+            </FinlyButton>
           </>
-        )}
-        {state === "err" && (
+        ) : null}
+        {state === "err" ? (
           <>
-            <h1 className="text-2xl font-bold text-red-600">Ошибка подтверждения</h1>
-            <p className="text-gray-600">{errMsg}</p>
-            <Button onClick={() => router.push("/login")}>На страницу входа</Button>
+            <h2 className="font-display text-2xl font-semibold text-rune-danger">
+              Ошибка подтверждения
+            </h2>
+            <p className="text-muted-foreground">{errMsg}</p>
+            <FinlyButton onClick={() => router.push("/login")}>
+              На страницу входа
+            </FinlyButton>
           </>
-        )}
+        ) : null}
       </div>
-    </div>
+    </FinlyAuthLayout>
   );
 }
 

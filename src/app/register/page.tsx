@@ -1,9 +1,11 @@
 "use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Button } from "@/components/ui/button";
+import { FinlyAuthLayout } from "@/components/finly/FinlyAuthLayout";
+import { FinlyButton } from "@/components/finly/FinlyButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -51,46 +53,91 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md space-y-6">
-        <h1 className="text-2xl font-bold text-center">Регистрация в Finly</h1>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <Field label="Email *">
-            <Input type="email" value={form.email} onChange={update("email")} required autoComplete="email" />
+    <FinlyAuthLayout
+      mascotPose="hero"
+      title="Стать Исследователем"
+      subtitle="Создайте аккаунт и подключите магазины"
+    >
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <h2 className="mb-2 hidden font-display text-2xl font-semibold text-foreground md:block">
+          Регистрация
+        </h2>
+        <Field label="Email *">
+          <Input
+            type="email"
+            value={form.email}
+            onChange={update("email")}
+            required
+            autoComplete="email"
+          />
+        </Field>
+        <Field label="Пароль * (мин. 8 символов, цифра + буква)">
+          <Input
+            type="password"
+            value={form.password}
+            onChange={update("password")}
+            required
+            autoComplete="new-password"
+            minLength={8}
+          />
+        </Field>
+        <Field label="Имя *">
+          <Input value={form.name} onChange={update("name")} required minLength={2} />
+        </Field>
+        <Field label="Телефон *">
+          <Input
+            type="tel"
+            value={form.phone}
+            onChange={update("phone")}
+            required
+            autoComplete="tel"
+          />
+        </Field>
+        <Field label="Название бизнеса *">
+          <Input
+            value={form.businessName}
+            onChange={update("businessName")}
+            required
+          />
+        </Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Field label="Магазинов WB">
+            <Input
+              type="number"
+              min={0}
+              value={form.shopsCountWB}
+              onChange={update("shopsCountWB")}
+            />
           </Field>
-          <Field label="Пароль * (мин. 8 символов, цифра + буква)">
-            <Input type="password" value={form.password} onChange={update("password")} required autoComplete="new-password" minLength={8} />
+          <Field label="Магазинов Ozon">
+            <Input
+              type="number"
+              min={0}
+              value={form.shopsCountOzon}
+              onChange={update("shopsCountOzon")}
+            />
           </Field>
-          <Field label="Имя *">
-            <Input value={form.name} onChange={update("name")} required minLength={2} />
+          <Field label="SKU">
+            <Input
+              type="number"
+              min={0}
+              value={form.skuCount}
+              onChange={update("skuCount")}
+            />
           </Field>
-          <Field label="Телефон *">
-            <Input type="tel" value={form.phone} onChange={update("phone")} required autoComplete="tel" />
-          </Field>
-          <Field label="Название бизнеса *">
-            <Input value={form.businessName} onChange={update("businessName")} required />
-          </Field>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Магазинов WB">
-              <Input type="number" min={0} value={form.shopsCountWB} onChange={update("shopsCountWB")} />
-            </Field>
-            <Field label="Магазинов Ozon">
-              <Input type="number" min={0} value={form.shopsCountOzon} onChange={update("shopsCountOzon")} />
-            </Field>
-            <Field label="Количество SKU">
-              <Input type="number" min={0} value={form.skuCount} onChange={update("skuCount")} />
-            </Field>
-          </div>
-          {error && <div className="text-sm text-red-600">{error}</div>}
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Создаём аккаунт…" : "Создать аккаунт"}
-          </Button>
-        </form>
-        <div className="text-sm text-center text-gray-600">
-          Уже есть аккаунт? <Link href="/login" className="hover:underline text-violet-600">Войти</Link>
         </div>
-      </div>
-    </div>
+        {error ? <p className="text-sm text-rune-danger">{error}</p> : null}
+        <FinlyButton type="submit" disabled={submitting} className="w-full">
+          {submitting ? "Создаём аккаунт…" : "Создать аккаунт"}
+        </FinlyButton>
+      </form>
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Уже есть аккаунт?{" "}
+        <Link href="/login" className="text-orange-flame hover:underline">
+          Войти
+        </Link>
+      </p>
+    </FinlyAuthLayout>
   );
 }
 

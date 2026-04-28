@@ -1,9 +1,11 @@
 "use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Button } from "@/components/ui/button";
+import { FinlyAuthLayout } from "@/components/finly/FinlyAuthLayout";
+import { FinlyButton } from "@/components/finly/FinlyButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -30,28 +32,49 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-bold text-center">Вход в Finly</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <Label>Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-          </div>
-          <div className="space-y-1">
-            <Label>Пароль</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
-          </div>
-          {error && <div className="text-sm text-red-600">{error}</div>}
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Вход…" : "Войти"}
-          </Button>
-        </form>
-        <div className="flex justify-between text-sm text-gray-600">
-          <Link href="/forgot-password" className="hover:underline">Забыли пароль?</Link>
-          <Link href="/register" className="hover:underline">Регистрация</Link>
+    <FinlyAuthLayout
+      mascotPose="hero"
+      title="Вход в Лигу"
+      subtitle="Присоединяйтесь к исследователям маркетплейсов"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h2 className="mb-2 hidden font-display text-2xl font-semibold text-foreground md:block">
+          Войти
+        </h2>
+        <div className="space-y-1">
+          <Label>Email</Label>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+          />
         </div>
-      </div>
-    </div>
+        <div className="space-y-1">
+          <Label>Пароль</Label>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
+        </div>
+        {error ? <p className="text-sm text-rune-danger">{error}</p> : null}
+        <FinlyButton type="submit" disabled={submitting} className="w-full">
+          {submitting ? "Вход…" : "Войти"}
+        </FinlyButton>
+        <p className="text-center text-sm text-muted-foreground">
+          <Link href="/forgot-password" className="text-orange-flame hover:underline">
+            Забыли пароль?
+          </Link>
+          {" · "}
+          <Link href="/register" className="text-orange-flame hover:underline">
+            Зарегистрироваться
+          </Link>
+        </p>
+      </form>
+    </FinlyAuthLayout>
   );
 }

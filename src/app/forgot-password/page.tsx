@@ -1,11 +1,13 @@
 "use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
-import { forgotPasswordRef } from "@/lib/convex-refs";
-import { Button } from "@/components/ui/button";
+import { FinlyAuthLayout } from "@/components/finly/FinlyAuthLayout";
+import { FinlyButton } from "@/components/finly/FinlyButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { forgotPasswordRef } from "@/lib/convex-refs";
 
 export default function ForgotPasswordPage() {
   const forgotPassword = useAction(forgotPasswordRef);
@@ -25,34 +27,50 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-bold text-center">Сброс пароля</h1>
-        {sent ? (
-          <div className="space-y-4 text-center">
-            <p className="text-gray-700">
-              Если такой email существует — письмо со ссылкой отправлено.
-              Проверьте почту в течение часа.
-            </p>
-            <Link href="/login" className="text-violet-600 hover:underline text-sm">
-              Назад ко входу
-            </Link>
+    <FinlyAuthLayout
+      mascotPose="empty-data"
+      title="Вернуть доступ"
+      subtitle="Укажите email, и мы отправим ссылку для сброса пароля"
+    >
+      {sent ? (
+        <div className="space-y-4 text-center">
+          <h2 className="font-display text-2xl font-semibold text-foreground">
+            Проверьте почту
+          </h2>
+          <p className="text-muted-foreground">
+            Если такой email существует — письмо со ссылкой отправлено.
+            Проверьте почту в течение часа.
+          </p>
+          <Link href="/login" className="text-sm text-orange-flame hover:underline">
+            Назад ко входу
+          </Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <h2 className="mb-2 hidden font-display text-2xl font-semibold text-foreground md:block">
+            Сброс пароля
+          </h2>
+          <div className="space-y-1">
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-            </div>
-            <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? "Отправляем…" : "Отправить ссылку"}
-            </Button>
-            <Link href="/login" className="block text-center text-sm text-gray-600 hover:underline">
-              Вспомнили? Войти
-            </Link>
-          </form>
-        )}
-      </div>
-    </div>
+          <FinlyButton type="submit" disabled={submitting} className="w-full">
+            {submitting ? "Отправляем…" : "Отправить ссылку"}
+          </FinlyButton>
+          <Link
+            href="/login"
+            className="block text-center text-sm text-muted-foreground hover:text-foreground"
+          >
+            Вспомнили? Войти
+          </Link>
+        </form>
+      )}
+    </FinlyAuthLayout>
   );
 }
