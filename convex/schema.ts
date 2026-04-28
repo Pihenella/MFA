@@ -37,10 +37,36 @@ export default defineSchema({
     // emailVerifiedAt — наш custom email-verification (Convex Auth uses
     // emailVerificationTime для своего flow). Мы используем свой.
     emailVerifiedAt: v.optional(v.number()),
+    // A.4 redesign: theme + tavern mode + monthly profit goal
+    themePreference: v.optional(
+      v.union(v.literal("light"), v.literal("dark"), v.literal("system"))
+    ),
+    tavernMode: v.optional(v.boolean()),
+    monthlyProfitGoal: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"])
     .index("by_status", ["status"]),
+
+  userAchievements: defineTable({
+    userId: v.id("users"),
+    kind: v.union(
+      v.literal("firstShop"),
+      v.literal("firstThousandSales"),
+      v.literal("monthlyPlanHit"),
+      v.literal("firstMillionProfit"),
+      v.literal("tenKSold"),
+      v.literal("zeroReturnsWeek"),
+      v.literal("firstReviewFiveStar"),
+      v.literal("storeAnniversary")
+    ),
+    achievedAt: v.number(),
+    payload: v.optional(v.any()),
+    seenAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_kind", ["userId", "kind"])
+    .index("by_user_unseen", ["userId", "seenAt"]),
 
   organizations: defineTable({
     name: v.string(),
