@@ -8,6 +8,7 @@ import {
   type Theme,
 } from "@/components/finly/Provider/ThemeProvider";
 import { TavernProvider } from "@/components/finly/Provider/TavernProvider";
+import { Footer } from "@/components/nav/Footer";
 import { TopNav } from "@/components/nav/TopNav";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
@@ -67,6 +68,7 @@ export default async function RootLayout({
                 <main className="max-w-screen-2xl mx-auto px-4 py-6 flex-1 w-full">
                   {children}
                 </main>
+                <Footer />
               </TavernProvider>
             </ThemeProvider>
           </ConvexClientProvider>
