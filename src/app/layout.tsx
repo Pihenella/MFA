@@ -8,6 +8,7 @@ import {
   type Theme,
 } from "@/components/finly/Provider/ThemeProvider";
 import { AchievementProvider } from "@/components/finly/Provider/AchievementProvider";
+import { SoundProvider } from "@/components/finly/Provider/SoundProvider";
 import { TavernProvider } from "@/components/finly/Provider/TavernProvider";
 import { Footer } from "@/components/nav/Footer";
 import { TopNav } from "@/components/nav/TopNav";
@@ -65,13 +66,15 @@ export default async function RootLayout({
           <ConvexClientProvider>
             <ThemeProvider initialTheme={initialTheme}>
               <TavernProvider initialTavern={initialTavern}>
-                <AchievementProvider>
-                  <TopNav />
-                  <main className="max-w-screen-2xl mx-auto px-4 py-6 flex-1 w-full">
-                    {children}
-                  </main>
-                  <Footer />
-                </AchievementProvider>
+                <SoundProvider>
+                  <AchievementProvider>
+                    <TopNav />
+                    <main className="max-w-screen-2xl mx-auto px-4 py-6 flex-1 w-full">
+                      {children}
+                    </main>
+                    <Footer />
+                  </AchievementProvider>
+                </SoundProvider>
               </TavernProvider>
             </ThemeProvider>
           </ConvexClientProvider>
