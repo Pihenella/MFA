@@ -10,7 +10,9 @@ import {
 import { ChevronDown, LogOut, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { OrgSwitcher } from "./OrgSwitcher";
 
 const WB_MENU = [
   { label: "Дашборд", href: "/" },
@@ -27,8 +29,11 @@ export function TopNav() {
   const pathname = usePathname();
   const isWbActive = WB_MENU.some((item) => pathname === item.href);
   const user = useCurrentUser();
+  const org = useCurrentOrg();
   const { signOut } = useAuthActions();
   const router = useRouter();
+  const isOwner = org?.role === "owner";
+  const isAdmin = user?.isSystemAdmin === true;
   const handleLogout = async () => {
     await signOut();
     router.push("/login");
@@ -78,6 +83,23 @@ export function TopNav() {
 
         {/* Settings + user menu */}
         <div className="ml-auto flex items-center gap-3">
+          <OrgSwitcher />
+          {isOwner && (
+            <Link
+              href="/org/team"
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Команда
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
+              href="/admin/users"
+              className="text-sm text-violet-600 hover:underline"
+            >
+              Админ
+            </Link>
+          )}
           <Link
             href="/settings"
             className="text-sm text-gray-500 hover:text-gray-700"
