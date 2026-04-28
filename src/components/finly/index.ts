@@ -1,4 +1,5 @@
 export { FinlyBadge } from "./FinlyBadge";
+export { FinlyAuthLayout } from "./FinlyAuthLayout";
 export { FinlyButton } from "./FinlyButton";
 export { FinlyCard } from "./FinlyCard";
 export { FinlyChartCard } from "./FinlyChartCard";
