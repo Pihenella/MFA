@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
+import { Slot } from "radix-ui";
 import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "secondary" | "ghost" | "treasure";
@@ -7,6 +8,7 @@ type Size = "sm" | "md" | "lg";
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  asChild?: boolean;
 }
 
 const VARIANT: Record<Variant, string> = {
@@ -29,11 +31,14 @@ export function FinlyButton({
   size = "md",
   className,
   type = "button",
+  asChild = false,
   ...rest
 }: Props) {
+  const Comp = asChild ? Slot.Root : "button";
+
   return (
-    <button
-      type={type}
+    <Comp
+      {...(!asChild ? { type } : {})}
       className={cn(
         "rounded-pill font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50",
         VARIANT[variant],

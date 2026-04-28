@@ -22,4 +22,16 @@ describe("FinlyButton", () => {
       "bg-gradient-to-r"
     );
   });
+
+  it("asChild passes button styling to the child element", () => {
+    render(
+      <FinlyButton asChild>
+        <a href="/settings">settings</a>
+      </FinlyButton>
+    );
+
+    const link = screen.getByRole("link", { name: "settings" });
+    expect(link).toHaveAttribute("href", "/settings");
+    expect(link.className).toContain("rounded-pill");
+  });
 });
