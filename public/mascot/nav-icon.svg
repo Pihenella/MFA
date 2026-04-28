@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TODO: replace with GPT-generated PNG (see docs/superpowers/specs/2026-04-28-finly-a4-redesign-design.md section 6.3) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+  <circle cx="16" cy="9" r="5" fill="#d4a93a"/>
+  <circle cx="16" cy="9" r="3" fill="#fff8d6"/>
+  <ellipse cx="16" cy="18" rx="9" ry="8" fill="#2c8a92"/>
+  <ellipse cx="16" cy="20" rx="6" ry="3" fill="#a4d8d6"/>
+  <path d="M16 6 L13 2 L16 4 L19 2 Z" fill="#1f6a72"/>
+  <circle cx="13" cy="17" r="1.4" fill="#1a1208"/>
+  <circle cx="19" cy="17" r="1.4" fill="#1a1208"/>
+  <circle cx="13.4" cy="16.7" r="0.4" fill="#fff"/>
+  <circle cx="19.4" cy="16.7" r="0.4" fill="#fff"/>
+  <path d="M12 21 Q16 24 20 21" stroke="#1a1208" stroke-width="1" fill="none" stroke-linecap="round"/>
+</svg>

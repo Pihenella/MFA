@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TODO: replace with GPT-generated PNG (see docs/superpowers/specs/2026-04-28-finly-a4-redesign-design.md section 6.3) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+  <ellipse cx="100" cy="180" rx="55" ry="6" fill="#1a1208" opacity="0.15"/>
+  <rect x="55" y="130" width="90" height="40" fill="#6b4e1c" stroke="#3a2810" stroke-width="2" rx="3"/>
+  <rect x="55" y="120" width="90" height="14" fill="#8a6630" stroke="#3a2810" stroke-width="2" rx="3"/>
+  <rect x="95" y="142" width="10" height="6" fill="#d4a93a" rx="1"/>
+  <rect x="60" y="135" width="80" height="32" fill="#0a1822"/>
+  <ellipse cx="100" cy="80" rx="38" ry="35" fill="#2c8a92"/>
+  <ellipse cx="100" cy="92" rx="22" ry="14" fill="#a4d8d6"/>
+  <path d="M100 45 L90 25 L100 35 L110 25 Z" fill="#1f6a72"/>
+  <circle cx="88" cy="78" r="4" fill="#1a1208"/>
+  <circle cx="112" cy="78" r="4" fill="#1a1208"/>
+  <path d="M88 100 Q100 108 112 100" stroke="#1a1208" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <ellipse cx="135" cy="55" rx="8" ry="18" fill="#2c8a92" transform="rotate(40 135 55)"/>
+  <text x="150" y="40" font-family="Georgia,serif" font-size="22" fill="#f97316">?</text>
+  <text x="40" y="50" font-family="Georgia,serif" font-size="16" fill="#d4a93a">?</text>
+</svg>
