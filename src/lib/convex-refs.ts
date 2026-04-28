@@ -74,12 +74,27 @@ export type CurrentUser = {
   emailVerifiedAt: number | null;
   rejectionReason: string | null;
   createdAt: number;
+  themePreference: "light" | "dark" | "system";
+  tavernMode: boolean;
+  monthlyProfitGoal: number | null;
 };
 
 export const usersCurrentRef = "users:current" as unknown as Q<
   Record<string, never>,
   CurrentUser | null
 >;
+export const usersUpdateThemePreferenceRef =
+  "users:updateThemePreference" as unknown as Mut<{
+    themePreference: "light" | "dark" | "system";
+  }>;
+export const usersUpdateTavernModeRef =
+  "users:updateTavernMode" as unknown as Mut<{
+    tavernMode: boolean;
+  }>;
+export const usersUpdateMonthlyProfitGoalRef =
+  "users:updateMonthlyProfitGoal" as unknown as Mut<{
+    monthlyProfitGoal: number | null;
+  }>;
 
 // ───────────────── auth
 export const verifyEmailRef = "auth/verifyEmail:verifyEmail" as unknown as Mut<

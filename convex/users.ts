@@ -1,5 +1,6 @@
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { v } from "convex/values";
 
 export const current = query({
   args: {},
@@ -23,6 +24,46 @@ export const current = query({
       emailVerifiedAt: user.emailVerifiedAt ?? null,
       rejectionReason: user.rejectionReason ?? null,
       createdAt: user.createdAt ?? 0,
+      themePreference: user.themePreference ?? "system" as const,
+      tavernMode: user.tavernMode ?? false,
+      monthlyProfitGoal: user.monthlyProfitGoal ?? null,
     };
+  },
+});
+
+export const updateThemePreference = mutation({
+  args: {
+    themePreference: v.union(
+      v.literal("light"),
+      v.literal("dark"),
+      v.literal("system")
+    ),
+  },
+  handler: async (ctx, { themePreference }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    await ctx.db.patch(userId, { themePreference });
+  },
+});
+
+export const updateTavernMode = mutation({
+  args: { tavernMode: v.boolean() },
+  handler: async (ctx, { tavernMode }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    await ctx.db.patch(userId, { tavernMode });
+  },
+});
+
+export const updateMonthlyProfitGoal = mutation({
+  args: { monthlyProfitGoal: v.union(v.number(), v.null()) },
+  handler: async (ctx, { monthlyProfitGoal }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    if (monthlyProfitGoal === null) {
+      await ctx.db.patch(userId, { monthlyProfitGoal: undefined });
+    } else {
+      await ctx.db.patch(userId, { monthlyProfitGoal });
+    }
   },
 });
