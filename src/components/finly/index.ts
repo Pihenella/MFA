@@ -1,6 +1,8 @@
 export { FinlyBadge } from "./FinlyBadge";
 export { FinlyButton } from "./FinlyButton";
 export { FinlyCard } from "./FinlyCard";
+export { FinlyChartCard } from "./FinlyChartCard";
+export { FinlyDataTable, type FinlyDataTableColumn } from "./FinlyDataTable";
 export { FinlyEmptyState } from "./FinlyEmptyState";
 export { FinlyMetricTile } from "./FinlyMetricTile";
 export { FinlySection } from "./FinlySection";
