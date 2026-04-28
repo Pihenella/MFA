@@ -3,11 +3,14 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant tavern (&:is(.tavern *));
 
 @theme inline {
+  /* base shadcn vars (re-bound below) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-cinzel);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -38,82 +41,177 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
+  /* Finly Murloc Tide tokens (mapped to raw vars in :root and .dark) */
+  --color-tavern-bg: var(--tavern-bg);
+  --color-tavern-surface: var(--tavern-surface);
+  --color-tavern-elevated: var(--tavern-elevated);
+  --color-orange-flame: var(--orange-flame);
+  --color-murloc-teal: var(--murloc-teal);
+  --color-gold-frame: var(--gold-frame);
+  --color-scroll-ink: var(--scroll-ink);
+  --color-scroll-faded: var(--scroll-faded);
+  --color-rune-success: var(--rune-success);
+  --color-rune-danger: var(--rune-danger);
+  --color-tide-glow: var(--tide-glow);
+
+  /* radii */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-frame: var(--radius-frame-val);
+  --radius-pill: 9999px;
+
+  /* motion */
+  --ease-tilt: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --ease-rune: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --radius: 0.5rem;
+  --radius-frame-val: 0.25rem;
+
+  /* Finly Murloc Tide — light */
+  --tavern-bg: oklch(0.97 0.02 90);
+  --tavern-surface: oklch(0.99 0.01 90);
+  --tavern-elevated: oklch(1 0 0);
+  --orange-flame: #f97316;
+  --murloc-teal: #2c8a92;
+  --gold-frame: #b8881e;
+  --scroll-ink: #1a1208;
+  --scroll-faded: #6a5a3c;
+  --rune-success: #2e8b57;
+  --rune-danger: #c0392b;
+  --tide-glow: rgba(44, 138, 146, 0.25);
+
+  /* --color-* aliases for direct use in CSS / regression tests */
+  --color-tavern-bg: var(--tavern-bg);
+  --color-tavern-surface: var(--tavern-surface);
+  --color-tavern-elevated: var(--tavern-elevated);
+  --color-orange-flame: var(--orange-flame);
+  --color-murloc-teal: var(--murloc-teal);
+  --color-gold-frame: var(--gold-frame);
+  --color-scroll-ink: var(--scroll-ink);
+  --color-scroll-faded: var(--scroll-faded);
+  --color-rune-success: var(--rune-success);
+  --color-rune-danger: var(--rune-danger);
+  --color-tide-glow: var(--tide-glow);
+
+  /* shadcn re-bindings (light) */
+  --background: var(--tavern-bg);
+  --foreground: var(--scroll-ink);
+  --card: var(--tavern-surface);
+  --card-foreground: var(--scroll-ink);
+  --popover: var(--tavern-elevated);
+  --popover-foreground: var(--scroll-ink);
+  --primary: var(--orange-flame);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--murloc-teal);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: var(--tavern-surface);
+  --muted-foreground: var(--scroll-faded);
+  --accent: var(--murloc-teal);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: var(--rune-danger);
+  --border: color-mix(in oklch, var(--gold-frame) 30%, transparent);
+  --input: color-mix(in oklch, var(--gold-frame) 30%, transparent);
+  --ring: var(--murloc-teal);
+  --chart-1: var(--orange-flame);
+  --chart-2: var(--murloc-teal);
+  --chart-3: var(--gold-frame);
+  --chart-4: var(--rune-success);
+  --chart-5: var(--rune-danger);
+  --sidebar: var(--tavern-surface);
+  --sidebar-foreground: var(--scroll-ink);
+  --sidebar-primary: var(--orange-flame);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: var(--tavern-bg);
+  --sidebar-accent-foreground: var(--scroll-ink);
+  --sidebar-border: color-mix(in oklch, var(--gold-frame) 30%, transparent);
+  --sidebar-ring: var(--murloc-teal);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  /* Finly Murloc Tide — dark */
+  --tavern-bg: oklch(0.10 0.04 220);
+  --tavern-surface: oklch(0.16 0.05 215);
+  --tavern-elevated: oklch(0.22 0.06 210);
+  --orange-flame: #ff8a3d;
+  --murloc-teal: #3bb0b8;
+  --gold-frame: #d4a93a;
+  --scroll-ink: #f5e9c4;
+  --scroll-faded: #a99770;
+  --rune-success: #4cc080;
+  --rune-danger: #e85a4a;
+  --tide-glow: rgba(44, 138, 146, 0.4);
+
+  /* --color-* aliases for direct use in CSS / regression tests */
+  --color-tavern-bg: var(--tavern-bg);
+  --color-tavern-surface: var(--tavern-surface);
+  --color-tavern-elevated: var(--tavern-elevated);
+  --color-orange-flame: var(--orange-flame);
+  --color-murloc-teal: var(--murloc-teal);
+  --color-gold-frame: var(--gold-frame);
+  --color-scroll-ink: var(--scroll-ink);
+  --color-scroll-faded: var(--scroll-faded);
+  --color-rune-success: var(--rune-success);
+  --color-rune-danger: var(--rune-danger);
+  --color-tide-glow: var(--tide-glow);
+
+  --background: var(--tavern-bg);
+  --foreground: var(--scroll-ink);
+  --card: var(--tavern-surface);
+  --card-foreground: var(--scroll-ink);
+  --popover: var(--tavern-elevated);
+  --popover-foreground: var(--scroll-ink);
+  --primary: var(--orange-flame);
+  --primary-foreground: oklch(0.10 0.04 220);
+  --secondary: var(--murloc-teal);
+  --secondary-foreground: oklch(0.10 0.04 220);
+  --muted: var(--tavern-surface);
+  --muted-foreground: var(--scroll-faded);
+  --accent: var(--murloc-teal);
+  --accent-foreground: oklch(0.10 0.04 220);
+  --destructive: var(--rune-danger);
+  --border: color-mix(in oklch, var(--gold-frame) 40%, transparent);
+  --input: color-mix(in oklch, var(--gold-frame) 40%, transparent);
+  --ring: var(--murloc-teal);
+  --chart-1: var(--orange-flame);
+  --chart-2: var(--murloc-teal);
+  --chart-3: var(--gold-frame);
+  --chart-4: var(--rune-success);
+  --chart-5: var(--rune-danger);
+  --sidebar: var(--tavern-surface);
+  --sidebar-foreground: var(--scroll-ink);
+  --sidebar-primary: var(--orange-flame);
+  --sidebar-primary-foreground: oklch(0.10 0.04 220);
+  --sidebar-accent: var(--tavern-bg);
+  --sidebar-accent-foreground: var(--scroll-ink);
+  --sidebar-border: color-mix(in oklch, var(--gold-frame) 40%, transparent);
+  --sidebar-ring: var(--murloc-teal);
+}
+
+/* Tavern Mode — additional CSS rules */
+.tavern .finly-card-interactive,
+.tavern .finly-button-primary {
+  animation: tide-shimmer 5s ease-in-out infinite;
+}
+.tavern .finly-metric-tile:hover {
+  transform: perspective(800px) rotateX(3deg) rotateY(-3deg) translateZ(0);
+}
+
+@keyframes tide-shimmer {
+  0%, 100% { box-shadow: 0 0 0 1px var(--murloc-teal), 0 4px 16px var(--tide-glow); }
+  50%      { box-shadow: 0 0 0 1px var(--murloc-teal), 0 8px 32px var(--tide-glow); }
+}
+
+/* Achievement toast slide-in */
+@keyframes achievement-enter {
+  0%   { opacity: 0; transform: translateY(-12px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @layer base {
@@ -122,5 +220,17 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+
+  /* prefers-reduced-motion: убиваем все анимации */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0ms !important;
+      transition-duration: 0ms !important;
+    }
+    .tavern .finly-metric-tile:hover {
+      transform: none !important;
+    }
   }
 }
