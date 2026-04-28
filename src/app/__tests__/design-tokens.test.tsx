@@ -33,3 +33,12 @@ describe("design tokens", () => {
     expect(css).toContain("--radius-pill");
   });
 });
+
+describe("typography", () => {
+  it("layout.tsx wires Inter + Cinzel via next/font", () => {
+    const layout = fs.readFileSync(path.join(process.cwd(), "src/app/layout.tsx"), "utf8");
+    expect(layout).toContain('Cinzel');
+    expect(layout).toContain('--font-cinzel');
+    expect(layout).toContain('--font-inter');
+  });
+});
