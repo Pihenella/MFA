@@ -1,126 +1,110 @@
 "use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown, LogOut, User as UserIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { Menu } from "lucide-react";
+import { MascotIllustration } from "@/components/finly/MascotIllustration";
+import { ThemeToggle } from "@/components/finly/ThemeToggle";
+import { usersCurrentRef } from "@/lib/convex-refs";
 import { cn } from "@/lib/utils";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useCurrentOrg } from "@/hooks/useCurrentOrg";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { AvatarMenu } from "./AvatarMenu";
 import { OrgSwitcher } from "./OrgSwitcher";
 
-const WB_MENU = [
+const NAV_ITEMS = [
   { label: "Дашборд", href: "/" },
-  { label: "Рука на пульсе", href: "/pulse" },
-  { label: "Аналитика продаж", href: "/analytics" },
+  { label: "Аналитика", href: "/analytics" },
+  { label: "Пульс", href: "/pulse" },
   { label: "Товары", href: "/products" },
-  { label: "Финансовые отчеты", href: "/financials" },
-  { label: "Отзывы и вопросы", href: "/feedbacks" },
-  { label: "Возвраты", href: "/returns" },
+  { label: "Финансы", href: "/financials" },
   { label: "Цены", href: "/prices" },
+  { label: "Возвраты", href: "/returns" },
+  { label: "Отзывы", href: "/feedbacks" },
 ];
 
 export function TopNav() {
+  const me = useQuery(usersCurrentRef);
   const pathname = usePathname();
-  const isWbActive = WB_MENU.some((item) => pathname === item.href);
-  const user = useCurrentUser();
-  const org = useCurrentOrg();
-  const { signOut } = useAuthActions();
-  const router = useRouter();
-  const isOwner = org?.role === "owner";
-  const isAdmin = user?.isSystemAdmin === true;
-  const handleLogout = async () => {
-    await signOut();
-    router.push("/login");
-  };
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const showNav = me?.status === "approved";
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center gap-6">
-        {/* Logo */}
-        <Link href="/" className="text-xl font-bold text-violet-600">
-          Finly
+    <header className="sticky top-0 z-50 border-b border-gold-frame/30 bg-card">
+      <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-4 px-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          <MascotIllustration pose="nav-icon" size={32} loading="eager" />
+          <span className="font-display text-xl font-semibold text-foreground">
+            Finly
+          </span>
         </Link>
 
-        {/* WB Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium px-3 py-1.5 rounded-md transition-colors",
-              isWbActive
-                ? "bg-violet-50 text-violet-700"
-                : "text-gray-700 hover:bg-gray-100"
-            )}
-          >
-            Wildberries <ChevronDown className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-52">
-            {WB_MENU.map((item) => (
-              <DropdownMenuItem key={item.href} asChild>
+        {showNav ? (
+          <nav className="hidden flex-1 items-center gap-1 md:flex">
+            {NAV_ITEMS.map(({ label, href }) => {
+              const active =
+                pathname === href || (href !== "/" && pathname.startsWith(href));
+
+              return (
                 <Link
-                  href={item.href}
+                  key={href}
+                  href={href}
                   className={cn(
-                    "w-full cursor-pointer",
-                    pathname === item.href && "text-violet-700 font-medium"
+                    "relative rounded-md px-3 py-2 text-sm transition",
+                    active
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  {item.label}
+                  {label}
+                  {active ? (
+                    <span className="absolute -bottom-px left-3 right-3 h-0.5 rounded-full bg-orange-flame" />
+                  ) : null}
                 </Link>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              );
+            })}
+          </nav>
+        ) : null}
 
-        {/* Ozon — disabled placeholder */}
-        <span className="text-sm text-gray-400 cursor-not-allowed flex items-center gap-1">
-          Ozon <ChevronDown className="h-4 w-4" />
-        </span>
-
-        {/* Settings + user menu */}
-        <div className="ml-auto flex items-center gap-3">
-          <OrgSwitcher />
-          {isOwner && (
-            <Link
-              href="/org/team"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Команда
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
+          {showNav ? <OrgSwitcher /> : null}
+          {me ? <AvatarMenu /> : null}
+          {me === null ? (
+            <Link href="/login" className="text-sm text-foreground hover:underline">
+              Войти
             </Link>
-          )}
-          {isAdmin && (
-            <Link
-              href="/admin/users"
-              className="text-sm text-violet-600 hover:underline"
+          ) : null}
+          {showNav ? (
+            <button
+              type="button"
+              className="rounded-md p-2 hover:bg-muted md:hidden"
+              onClick={() => setDrawerOpen((current) => !current)}
+              aria-label="Открыть меню"
+              aria-expanded={drawerOpen}
             >
-              Админ
-            </Link>
-          )}
-          <Link
-            href="/settings"
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            Настройки
-          </Link>
-          {user && (
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1 text-sm px-2 py-1 hover:bg-gray-100 rounded-md">
-                <UserIcon className="h-4 w-4" />
-                {user.name || user.email}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="h-4 w-4 mr-2" /> Выйти
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              <Menu aria-hidden="true" size={20} />
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {showNav && drawerOpen ? (
+        <div className="border-t border-border bg-popover md:hidden">
+          <nav className="grid grid-cols-2 gap-1 px-4 py-3">
+            {NAV_ITEMS.map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setDrawerOpen(false)}
+                className="rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted"
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      ) : null}
     </header>
   );
 }
