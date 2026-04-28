@@ -219,3 +219,95 @@ export const orgListMineRef = "org/me:listMine" as unknown as Q<
     ownerId: Id<"users">;
   }>
 >;
+
+// ───────────────── admin/users
+export const adminUsersListByStatusRef =
+  "admin/users:listByStatus" as unknown as Q<
+    {
+      status?: "pending" | "approved" | "rejected";
+      search?: string;
+    },
+    Doc<"users">[]
+  >;
+export const adminUsersCountsByStatusRef =
+  "admin/users:countsByStatus" as unknown as Q<
+    Record<string, never>,
+    { total: number; pending: number; approved: number; rejected: number }
+  >;
+export const adminApproveUserRef = "admin/users:approveUser" as unknown as Mut<
+  { userId: Id<"users"> },
+  { ok: true; orgId: Id<"organizations"> }
+>;
+export const adminRejectUserRef = "admin/users:rejectUser" as unknown as Mut<
+  { userId: Id<"users">; reason?: string },
+  { ok: true }
+>;
+
+// ───────────────── org/invites
+export type InvitePublic = {
+  email: string;
+  orgName: string;
+  inviterName: string;
+};
+export const orgInvitesListRef = "org/invites:listInvitesForOrg" as unknown as Q<
+  { orgId: Id<"organizations"> },
+  Doc<"invites">[]
+>;
+export const orgInviteByTokenRef =
+  "org/invites:getInviteByToken" as unknown as Q<
+    { token: string },
+    | { ok: true; invite: InvitePublic }
+    | { ok: false; error: "not_found" | "expired" | "revoked" | "already_accepted" }
+  >;
+export const orgInviteCreateRef = "org/invites:createInvite" as unknown as Mut<
+  { orgId: Id<"organizations">; email: string },
+  { inviteId: Id<"invites"> }
+>;
+export const orgInviteRevokeRef = "org/invites:revokeInvite" as unknown as Mut<
+  { inviteId: Id<"invites"> },
+  { ok: true }
+>;
+export const orgInviteResendRef = "org/invites:resendInvite" as unknown as Mut<
+  { inviteId: Id<"invites"> },
+  { ok: true }
+>;
+export const orgInviteAcceptRef = "org/invites:acceptInvite" as unknown as Mut<
+  { token: string },
+  { ok: true; alreadyMember: boolean }
+>;
+
+// ───────────────── org/team
+export type TeamMember = {
+  membershipId: Id<"memberships">;
+  userId: Id<"users">;
+  email: string;
+  name: string;
+  role: "owner" | "member";
+  joinedAt: number;
+};
+export const orgTeamListMembersRef = "org/team:listMembers" as unknown as Q<
+  { orgId: Id<"organizations"> },
+  TeamMember[]
+>;
+export const orgTeamRemoveMemberRef = "org/team:removeMember" as unknown as Mut<
+  { membershipId: Id<"memberships"> },
+  { ok: true }
+>;
+export const orgTeamLeaveRef = "org/team:leaveOrg" as unknown as Mut<
+  { orgId: Id<"organizations"> },
+  { ok: true }
+>;
+export const orgTeamTransferOwnershipRef =
+  "org/team:transferOwnership" as unknown as Mut<
+    {
+      orgId: Id<"organizations">;
+      newOwnerMembershipId: Id<"memberships">;
+    },
+    { ok: true }
+  >;
+
+// ───────────────── org/settings
+export const orgRenameRef = "org/settings:renameOrg" as unknown as Mut<
+  { orgId: Id<"organizations">; newName: string },
+  { ok: true }
+>;
