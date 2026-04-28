@@ -12,7 +12,7 @@ function OwnerCheck({ children }: { children: ReactNode }) {
   }, [org, router]);
   if (org === undefined) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400">
+      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
         Загрузка…
       </div>
     );

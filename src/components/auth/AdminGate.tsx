@@ -12,7 +12,7 @@ function AdminCheck({ children }: { children: ReactNode }) {
   }, [isAdmin, router]);
   if (isAdmin === undefined) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400">
+      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
         Загрузка…
       </div>
     );
