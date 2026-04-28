@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, getCostsRef, getPricesRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
@@ -16,6 +17,14 @@ function fmt(val: number, unit?: string): string {
 }
 
 export default function PricesPage() {
+  return (
+    <AuthGate>
+      <PricesContent />
+    </AuthGate>
+  );
+}
+
+function PricesContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;

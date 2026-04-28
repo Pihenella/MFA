@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, upsertCostRef, upsertBulkRef, getStocksRef, costsListByShopRef, getProductCardsRef } from "@/lib/convex-refs";
 import { useQuery, useMutation } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -11,6 +12,14 @@ import * as XLSX from "xlsx";
 import { parseSimpleCostFile, isRealizationReport, parseRealizationReport } from "@/lib/costUploadParser";
 
 export default function ProductsPage() {
+  return (
+    <AuthGate>
+      <ProductsContent />
+    </AuthGate>
+  );
+}
+
+function ProductsContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || shops[0]?._id) as Id<"shops"> | undefined;

@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, shopsGetSyncLogRef, shopsAddRef, shopsRemoveRef, shopsUpdateCategoriesRef, triggerSyncRef } from "@/lib/convex-refs";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -287,8 +288,10 @@ function SettingsPageInner() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={null}>
-      <SettingsPageInner />
-    </Suspense>
+    <AuthGate>
+      <Suspense fallback={null}>
+        <SettingsPageInner />
+      </Suspense>
+    </AuthGate>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import dynamic from "next/dynamic";
@@ -30,6 +31,14 @@ const GRANULARITIES = [
 type Granularity = "day" | "week" | "month";
 
 export default function PulsePage() {
+  return (
+    <AuthGate>
+      <PulseContent />
+    </AuthGate>
+  );
+}
+
+function PulseContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;

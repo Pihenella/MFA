@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, getSalesAnalyticsRef, fetchAnalyticsRef } from "@/lib/convex-refs";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useAction } from "convex/react";
@@ -129,6 +130,14 @@ function firstColLabel(gb: GroupBy): string {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <AuthGate>
+      <AnalyticsContent />
+    </AuthGate>
+  );
+}
+
+function AnalyticsContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;

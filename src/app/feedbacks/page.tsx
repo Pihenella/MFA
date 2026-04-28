@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, getFeedbacksRef, getQuestionsRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
@@ -30,6 +31,14 @@ function Stars({ count }: { count: number }) {
 }
 
 export default function FeedbacksPage() {
+  return (
+    <AuthGate>
+      <FeedbacksContent />
+    </AuthGate>
+  );
+}
+
+function FeedbacksContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;

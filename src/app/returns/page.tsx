@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, getReturnsRef } from "@/lib/convex-refs";
 import { useState } from "react";
 import { useQuery } from "convex/react";
@@ -13,6 +14,14 @@ const PREV_END = format(subDays(new Date(), 30), "yyyy-MM-dd");
 const PREV_START = format(subDays(new Date(), 59), "yyyy-MM-dd");
 
 export default function ReturnsPage() {
+  return (
+    <AuthGate>
+      <ReturnsContent />
+    </AuthGate>
+  );
+}
+
+function ReturnsContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;

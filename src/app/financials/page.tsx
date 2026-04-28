@@ -1,4 +1,5 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { shopsListMineRef, getCampaignsRef, costsListByShopRef, getFinancialReportsRef } from "@/lib/convex-refs";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -272,6 +273,14 @@ function WideTable<T extends Record<string, unknown>>({
 // ---- Main page ----
 
 export default function FinancialsPage() {
+  return (
+    <AuthGate>
+      <FinancialsContent />
+    </AuthGate>
+  );
+}
+
+function FinancialsContent() {
   const shops = useQuery(shopsListMineRef) ?? [];
   const [shopId, setShopId] = useState<string>("");
   const [dateFrom, setDateFrom] = useState(() =>
