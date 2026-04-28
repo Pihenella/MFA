@@ -1,6 +1,7 @@
 "use client";
-import { useQuery, useConvexAuth } from "convex/react";
+import { useQuery } from "convex/react";
 import { orgListMineRef } from "@/lib/convex-refs";
+import { useCurrentUser } from "./useCurrentUser";
 
 export type CurrentOrg = {
   orgId: import("../../convex/_generated/dataModel").Id<"organizations">;
@@ -10,9 +11,14 @@ export type CurrentOrg = {
 };
 
 export function useCurrentOrg(): CurrentOrg | null | undefined {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const orgs = useQuery(orgListMineRef, isAuthenticated ? {} : "skip");
-  if (isLoading || (isAuthenticated && orgs === undefined)) return undefined;
-  if (!isAuthenticated || !orgs || orgs.length === 0) return null;
+  const user = useCurrentUser();
+  const orgs = useQuery(
+    orgListMineRef,
+    user?.status === "approved" ? {} : "skip"
+  );
+  if (user === undefined) return undefined;
+  if (!user || user.status !== "approved") return null;
+  if (orgs === undefined) return undefined;
+  if (orgs.length === 0) return null;
   return orgs[0];
 }

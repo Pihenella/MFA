@@ -1,6 +1,7 @@
 "use client";
-import { useQuery, useConvexAuth } from "convex/react";
+import { useQuery } from "convex/react";
 import { orgListMineRef } from "@/lib/convex-refs";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,8 +11,11 @@ import {
 import { ChevronDown } from "lucide-react";
 
 export function OrgSwitcher() {
-  const { isAuthenticated } = useConvexAuth();
-  const orgs = useQuery(orgListMineRef, isAuthenticated ? {} : "skip");
+  const user = useCurrentUser();
+  const orgs = useQuery(
+    orgListMineRef,
+    user?.status === "approved" ? {} : "skip"
+  );
   if (!orgs || orgs.length < 2) return null;
   const active = orgs[0];
   return (
