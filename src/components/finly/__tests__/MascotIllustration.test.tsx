@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MascotIllustration } from "@/components/finly/MascotIllustration";
 
 describe("MascotIllustration", () => {
-  it("renders picture with webp source and svg fallback", () => {
+  it("renders picture with webp source and png fallback", () => {
     const { container } = render(
       <MascotIllustration pose="hero" size={320} alt="Hero mascot" />
     );
@@ -12,7 +12,7 @@ describe("MascotIllustration", () => {
     const source = picture?.querySelector("source");
     expect(source?.getAttribute("srcset")).toContain("/mascot/hero.webp");
     const img = picture?.querySelector("img");
-    expect(img?.getAttribute("src")).toContain("/mascot/hero.svg");
+    expect(img?.getAttribute("src")).toContain("/mascot/hero.png");
     expect(img?.getAttribute("alt")).toBe("Hero mascot");
     expect(img?.getAttribute("width")).toBe("320");
   });

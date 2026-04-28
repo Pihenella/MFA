@@ -37,7 +37,7 @@ export function MascotIllustration({
         type="image/webp"
       />
       <img
-        src={`/mascot/${pose}.svg`}
+        src={`/mascot/${pose}.png`}
         alt={alt ?? POSE_ALT[pose]}
         width={size}
         height={size}
