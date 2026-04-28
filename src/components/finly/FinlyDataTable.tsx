@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 export interface FinlyDataTableColumn<T> {
   key: keyof T | string;
-  header: string;
+  header: ReactNode;
   render?: (row: T) => ReactNode;
   className?: string;
   align?: "left" | "right" | "center";

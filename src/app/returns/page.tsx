@@ -6,12 +6,31 @@ import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, subDays } from "date-fns";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
-import { Badge } from "@/components/ui/badge";
+import {
+  FinlyBadge,
+  FinlyCard,
+  FinlyDataTable,
+  FinlyEmptyState,
+  FinlyMetricTile,
+} from "@/components/finly";
 
 const TODAY = format(new Date(), "yyyy-MM-dd");
 const MONTH_AGO = format(subDays(new Date(), 29), "yyyy-MM-dd");
 const PREV_END = format(subDays(new Date(), 30), "yyyy-MM-dd");
 const PREV_START = format(subDays(new Date(), 59), "yyyy-MM-dd");
+
+function statusTone(
+  status: string | undefined,
+): "success" | "danger" | "info" | "gold" | "muted" {
+  const value = (status ?? "").toLowerCase();
+  if (!value) return "muted";
+  if (value.includes("отмен") || value.includes("cancel")) return "danger";
+  if (value.includes("готов") || value.includes("получ") || value.includes("complete")) {
+    return "success";
+  }
+  if (value.includes("пути") || value.includes("process")) return "info";
+  return "gold";
+}
 
 export default function ReturnsPage() {
   return (
@@ -34,13 +53,22 @@ function ReturnsContent() {
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
+  const skuCount = new Set(returns.map((row) => row.nmId)).size;
+  const warehouseCount = new Set(returns.map((row) => row.warehouseName)).size;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Возвраты</h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Возвраты
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Возвраты по заказам, складам и текущим статусам.
+          </p>
+        </div>
         <select
-          className="border rounded-md px-3 py-2 text-sm"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           value={selectedShop}
           onChange={(e) => setSelectedShop(e.target.value)}
         >
@@ -49,45 +77,74 @@ function ReturnsContent() {
         </select>
       </div>
 
-      <PeriodSelector
-        period={period}
-        comparePeriod={comparePeriod}
-        onChange={(p, cp) => { setPeriod(p); setComparePeriod(cp); }}
+      <FinlyCard accent="teal" className="p-3">
+        <PeriodSelector
+          period={period}
+          comparePeriod={comparePeriod}
+          onChange={(p, cp) => { setPeriod(p); setComparePeriod(cp); }}
+        />
+      </FinlyCard>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <FinlyMetricTile
+          label="Всего возвратов"
+          value={returns.length}
+          accent="flame"
+        />
+        <FinlyMetricTile
+          label="SKU в возвратах"
+          value={skuCount}
+          accent="gold"
+        />
+        <FinlyMetricTile
+          label="Складов"
+          value={warehouseCount}
+          accent="teal"
+        />
+      </div>
+
+      <FinlyDataTable
+        rows={returns}
+        rowKey={(row) => row._id}
+        empty={
+          <FinlyEmptyState
+            pose="empty-data"
+            title="Нет возвратов"
+            body="За выбранный период возвраты не найдены."
+          />
+        }
+        columns={[
+          {
+            key: "returnDate",
+            header: "Дата",
+            className: "whitespace-nowrap text-xs",
+          },
+          {
+            key: "nmId",
+            header: "nmId",
+            className: "font-mono text-xs",
+          },
+          {
+            key: "orderId",
+            header: "ID заказа",
+            className: "font-mono text-xs",
+          },
+          {
+            key: "warehouseName",
+            header: "Склад",
+            className: "text-xs",
+          },
+          {
+            key: "status",
+            header: "Статус",
+            render: (row) => (
+              <FinlyBadge tone={statusTone(row.status)}>
+                {row.status || "—"}
+              </FinlyBadge>
+            ),
+          },
+        ]}
       />
-
-      <div className="flex items-center gap-3">
-        <Badge variant="outline">Всего возвратов: {returns.length}</Badge>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100">
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">nmId</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID заказа</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Склад</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-            </tr>
-          </thead>
-          <tbody>
-            {returns.map((r) => (
-              <tr key={r._id} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-3 py-2 text-xs whitespace-nowrap">{r.returnDate}</td>
-                <td className="px-3 py-2 font-mono text-xs">{r.nmId}</td>
-                <td className="px-3 py-2 text-xs font-mono">{r.orderId}</td>
-                <td className="px-3 py-2 text-xs">{r.warehouseName}</td>
-                <td className="px-3 py-2">
-                  <Badge variant="outline">{r.status || "—"}</Badge>
-                </td>
-              </tr>
-            ))}
-            {returns.length === 0 && (
-              <tr><td colSpan={5} className="py-8 text-center text-gray-400">Нет возвратов за выбранный период</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

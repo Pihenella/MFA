@@ -4,15 +4,34 @@ import { shopsListMineRef, getCostsRef, getPricesRef } from "@/lib/convex-refs";
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Search, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+  FinlyButton,
+  FinlyCard,
+  FinlyDataTable,
+  FinlyEmptyState,
+  FinlyMetricTile,
+} from "@/components/finly";
 
 type SortKey = "nmId" | "supplierArticle" | "price" | "discount" | "finalPrice" | "cost" | "markup";
 
-function fmt(val: number, unit?: string): string {
-  if (unit === "%") return `${val.toFixed(1)}%`;
-  if (unit === "₽") return `${Math.round(val).toLocaleString("ru")} ₽`;
+type PriceRow = {
+  _id: string;
+  nmId: number;
+  supplierArticle: string;
+  price: number;
+  discount: number;
+  finalPrice: number;
+  cost: number;
+  markup: number;
+};
+
+function fmt(val: number | string, unit?: string): string {
+  const n = Number(val);
+  if (unit === "%") return `${n.toFixed(1)}%`;
+  if (unit === "₽") return `${Math.round(n).toLocaleString("ru")} ₽`;
   return String(val);
 }
 
@@ -42,7 +61,7 @@ function PricesContent() {
     return m;
   }, [costs]);
 
-  const rows = useMemo(() => {
+  const rows = useMemo<PriceRow[]>(() => {
     return prices.map((p) => {
       const finalPrice = p.price * (1 - p.discount / 100);
       const cost = costMap.get(p.nmId) ?? 0;
@@ -70,6 +89,20 @@ function PricesContent() {
     return items;
   }, [rows, search, sortKey, sortAsc]);
 
+  const totals = useMemo(() => {
+    const pricedRows = rows.filter((row) => row.cost > 0);
+    const avgDiscount =
+      rows.length > 0
+        ? rows.reduce((sum, row) => sum + row.discount, 0) / rows.length
+        : 0;
+    const avgMarkup =
+      pricedRows.length > 0
+        ? pricedRows.reduce((sum, row) => sum + row.markup, 0) / pricedRows.length
+        : 0;
+
+    return { count: rows.length, avgDiscount, avgMarkup };
+  }, [rows]);
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(false); }
@@ -87,10 +120,17 @@ function PricesContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Цены и скидки</h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Цены и скидки
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Текущие цены WB, скидки и маржинальность по SKU.
+          </p>
+        </div>
         <select
-          className="border rounded-md px-3 py-2 text-sm"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           value={selectedShop}
           onChange={(e) => setSelectedShop(e.target.value)}
         >
@@ -99,58 +139,105 @@ function PricesContent() {
         </select>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          placeholder="Поиск по артикулу или nmId..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <FinlyMetricTile
+          label="Позиций"
+          value={totals.count}
+          accent="teal"
+        />
+        <FinlyMetricTile
+          label="Средняя скидка"
+          value={totals.avgDiscount}
+          formatted={`${totals.avgDiscount.toFixed(1)}%`}
+          accent="gold"
+        />
+        <FinlyMetricTile
+          label="Средняя наценка"
+          value={totals.avgMarkup}
+          formatted={totals.avgMarkup > 0 ? `${totals.avgMarkup.toFixed(1)}%` : "—"}
+          accent={totals.avgMarkup >= 0 ? "teal" : "flame"}
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100">
-              {COLUMNS.map((col) => (
-                <th
-                  key={col.key}
-                  className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-50 whitespace-nowrap"
-                  onClick={() => toggleSort(col.key)}
+      <FinlyCard accent="teal" className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Поиск по артикулу или nmId..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <FinlyButton disabled>
+          <Check className="mr-2 h-4 w-4" />
+          Применить
+        </FinlyButton>
+      </FinlyCard>
+
+      <FinlyDataTable<PriceRow>
+        rows={filtered}
+        rowKey={(row) => row._id}
+        empty={
+          <FinlyEmptyState
+            pose="empty-data"
+            title="Нет данных о ценах"
+            body="Включите категорию «Цены и скидки» в настройках или измените поиск."
+            cta={{ label: "К настройкам", href: "/settings" }}
+          />
+        }
+        columns={COLUMNS.map((col) => ({
+          key: col.key,
+          header: (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 whitespace-nowrap text-left uppercase"
+              onClick={() => toggleSort(col.key)}
+            >
+              {col.label}
+              {sortKey === col.key ? (
+                sortAsc ? (
+                  <ArrowUp className="h-3 w-3 text-orange-flame" />
+                ) : (
+                  <ArrowDown className="h-3 w-3 text-orange-flame" />
+                )
+              ) : null}
+            </button>
+          ),
+          align:
+            col.key === "nmId" || col.key === "supplierArticle"
+              ? "left"
+              : "right",
+          className: cn(
+            "whitespace-nowrap text-xs",
+            col.key === "nmId" && "font-mono",
+          ),
+          render: (p) => {
+            if (col.key === "cost") {
+              return p.cost > 0 ? (
+                fmt(p.cost, "₽")
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              );
+            }
+            if (col.key === "markup") {
+              return (
+                <span
+                  className={cn(
+                    "font-medium",
+                    p.markup > 0 && "text-rune-success",
+                    p.markup < 0 && "text-rune-danger",
+                    p.cost <= 0 && "text-muted-foreground",
+                  )}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    {col.label}
-                    {sortKey === col.key && (
-                      sortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                    )}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => (
-              <tr key={p._id} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-3 py-2 font-mono text-xs">{p.nmId}</td>
-                <td className="px-3 py-2 text-xs">{p.supplierArticle}</td>
-                <td className="px-3 py-2 text-xs text-right">{fmt(p.price, "₽")}</td>
-                <td className="px-3 py-2 text-xs text-right">{fmt(p.discount, "%")}</td>
-                <td className="px-3 py-2 text-xs text-right font-medium">{fmt(p.finalPrice, "₽")}</td>
-                <td className="px-3 py-2 text-xs text-right">
-                  {p.cost > 0 ? fmt(p.cost, "₽") : <span className="text-gray-400">—</span>}
-                </td>
-                <td className={cn("px-3 py-2 text-xs text-right font-medium", p.markup > 0 ? "text-green-600" : p.markup < 0 ? "text-red-500" : "text-gray-400")}>
                   {p.cost > 0 ? fmt(p.markup, "%") : "—"}
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} className="py-8 text-center text-gray-400">Нет данных о ценах. Включите категорию &quot;Цены и скидки&quot; в настройках.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                </span>
+              );
+            }
+            return fmt(p[col.key], col.unit);
+          },
+        }))}
+      />
     </div>
   );
 }
