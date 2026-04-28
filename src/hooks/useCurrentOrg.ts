@@ -1,5 +1,5 @@
 "use client";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { orgListMineRef } from "@/lib/convex-refs";
 
 export type CurrentOrg = {
@@ -9,13 +9,10 @@ export type CurrentOrg = {
   ownerId: import("../../convex/_generated/dataModel").Id<"users">;
 };
 
-/**
- * Возвращает первую orgId юзера (для MVP при единственной org на юзера).
- * undefined — loading; null — нет org-ы (новый юзер до approval).
- */
 export function useCurrentOrg(): CurrentOrg | null | undefined {
-  const orgs = useQuery(orgListMineRef);
-  if (orgs === undefined) return undefined;
-  if (orgs.length === 0) return null;
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const orgs = useQuery(orgListMineRef, isAuthenticated ? {} : "skip");
+  if (isLoading || (isAuthenticated && orgs === undefined)) return undefined;
+  if (!isAuthenticated || !orgs || orgs.length === 0) return null;
   return orgs[0];
 }
