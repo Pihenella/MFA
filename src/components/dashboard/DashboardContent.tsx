@@ -8,12 +8,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { Welcome } from "@/components/dashboard/Welcome";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { computeDashboardMetrics } from "@/lib/metrics";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { FinlyEmptyState } from "@/components/finly/FinlyEmptyState";
+import { FinlyCard } from "@/components/finly/FinlyCard";
 
 function pctDelta(now: number, prev: number) {
   if (prev === 0) return now === 0 ? 0 : 100;
@@ -26,7 +27,8 @@ const PREV_MONTH_START = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM
 const PREV_MONTH_END = format(subDays(startOfMonth(new Date()), 1), "yyyy-MM-dd");
 
 export function DashboardContent() {
-  const shops = (useQuery(shopsListMineRef) ?? []) as Doc<"shops">[];
+  const shopsResult = useQuery(shopsListMineRef);
+  const shops = (shopsResult ?? []) as Doc<"shops">[];
   const user = useCurrentUser();
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
@@ -44,15 +46,27 @@ export function DashboardContent() {
   const finNmIds = new Set(now.financials.filter((f) => f.docTypeName === "Продажа").map((f) => f.nmId));
   const missingCostCount = [...finNmIds].filter((id) => !costSet.has(id)).length;
 
-  if (user && shops.length === 0) {
-    return <Welcome userName={user.name || "пользователь"} />;
+  if (user && shopsResult !== undefined && shops.length === 0) {
+    return (
+      <FinlyEmptyState
+        pose="empty-shops"
+        title="Магазинов пока нет"
+        body="Подключите свой первый магазин Wildberries, чтобы увидеть метрики."
+        cta={{ label: "Добавить магазин", href: "/settings" }}
+      />
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Дашборд Wildberries</h1>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Сокровищница
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Дашборд Wildberries с текущими метриками и сравнением периодов.
+          </p>
           <Tabs value={tab} onValueChange={(v) => setTab(v as "all" | "wb" | "ozon")} className="mt-2">
             <TabsList>
               <TabsTrigger value="all">Общий</TabsTrigger>
@@ -62,7 +76,7 @@ export function DashboardContent() {
           </Tabs>
         </div>
         <select
-          className="border rounded-md px-3 py-2 text-sm"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           value={selectedShop}
           onChange={(e) => setSelectedShop(e.target.value)}
         >
@@ -77,20 +91,23 @@ export function DashboardContent() {
         onChange={(p, cp) => { setPeriod(p); setComparePeriod(cp); }}
       />
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+      <FinlyCard accent="gold" className="px-4 py-3 text-sm text-muted-foreground">
         Финансовые данные WB обновляются с задержкой 1-2 недели. Комиссия, логистика, хранение и удержания могут быть неполными для последних дней.
-      </div>
+      </FinlyCard>
 
       {missingCostCount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800 flex items-center gap-2">
+        <FinlyCard
+          accent="flame"
+          className="flex items-center gap-2 px-4 py-3 text-sm text-rune-danger"
+        >
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>
             <strong>{missingCostCount}</strong> {missingCostCount === 1 ? "товар" : missingCostCount < 5 ? "товара" : "товаров"} без себестоимости — расчёты прибыли, ROI и маржи некорректны.{" "}
-            <Link href="/products" className="underline font-medium hover:text-red-900">
+            <Link href="/products" className="font-medium underline hover:text-foreground">
               Загрузить себестоимость
             </Link>
           </span>
-        </div>
+        </FinlyCard>
       )}
 
       <DashboardSection title="Переходы и корзины">

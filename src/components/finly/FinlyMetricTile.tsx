@@ -17,6 +17,7 @@ interface Props extends Omit<HTMLAttributes<HTMLDivElement>, "onClick"> {
   comparison?: string;
   accent?: Accent;
   achievement?: Achievement;
+  invertDeltaColors?: boolean;
   loading?: boolean;
   onClick?: () => void;
 }
@@ -37,6 +38,7 @@ export function FinlyMetricTile({
   comparison,
   accent = "gold",
   achievement,
+  invertDeltaColors = false,
   loading = false,
   onClick,
   className,
@@ -46,6 +48,7 @@ export function FinlyMetricTile({
     formatted ?? (typeof value === "number" ? numberFmt.format(value) : value);
   const hasDelta = deltaPct !== undefined;
   const positive = hasDelta && deltaPct >= 0;
+  const deltaIsGood = hasDelta && (invertDeltaColors ? !positive : positive);
   const interactive = !!onClick;
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -115,7 +118,7 @@ export function FinlyMetricTile({
             <span
               className={cn(
                 "inline-flex items-center gap-1 font-medium",
-                positive ? "text-rune-success" : "text-rune-danger"
+                deltaIsGood ? "text-rune-success" : "text-rune-danger"
               )}
             >
               <TrendIcon aria-hidden="true" className="h-3.5 w-3.5" />
