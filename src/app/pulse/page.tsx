@@ -6,7 +6,8 @@ import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, subDays } from "date-fns";
-import { Button } from "@/components/ui/button";
+import { FinlyButton } from "@/components/finly/FinlyButton";
+import { FinlyCard } from "@/components/finly/FinlyCard";
 import { usePulseData } from "@/hooks/usePulseData";
 import { cn } from "@/lib/utils";
 
@@ -54,10 +55,17 @@ function PulseContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Рука на пульсе</h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Рука на пульсе
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Динамика выручки, заказов, расходов и маржинальности.
+          </p>
+        </div>
         <select
-          className="border rounded-md px-3 py-2 text-sm"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           value={selectedShop}
           onChange={(e) => setSelectedShop(e.target.value)}
         >
@@ -66,41 +74,41 @@ function PulseContent() {
         </select>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
+      <FinlyCard accent="teal" className="flex flex-wrap items-center gap-3 p-3">
+        <div className="flex gap-1 rounded-frame border border-border bg-background p-1">
           {PRESETS.map((p) => (
-            <Button
+            <FinlyButton
               key={p.days}
-              variant="ghost"
+              variant={days === p.days ? "primary" : "ghost"}
               size="sm"
               className={cn(
                 "text-xs",
-                days === p.days && "bg-violet-100 text-violet-700",
+                days !== p.days && "text-muted-foreground",
               )}
               onClick={() => setDays(p.days)}
             >
               {p.label}
-            </Button>
+            </FinlyButton>
           ))}
         </div>
 
-        <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
+        <div className="flex gap-1 rounded-frame border border-border bg-background p-1">
           {GRANULARITIES.map((g) => (
-            <Button
+            <FinlyButton
               key={g.value}
-              variant="ghost"
+              variant={granularity === g.value ? "secondary" : "ghost"}
               size="sm"
               className={cn(
                 "text-xs",
-                granularity === g.value && "bg-violet-100 text-violet-700",
+                granularity !== g.value && "text-muted-foreground",
               )}
               onClick={() => setGranularity(g.value as Granularity)}
             >
               {g.label}
-            </Button>
+            </FinlyButton>
           ))}
         </div>
-      </div>
+      </FinlyCard>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <RevenueChart data={data} />
