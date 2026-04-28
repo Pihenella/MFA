@@ -7,6 +7,7 @@ import {
   ThemeProvider,
   type Theme,
 } from "@/components/finly/Provider/ThemeProvider";
+import { TavernProvider } from "@/components/finly/Provider/TavernProvider";
 import { TopNav } from "@/components/nav/TopNav";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
@@ -40,22 +41,33 @@ export default async function RootLayout({
 }) {
   const cookieStore = await cookies();
   const initialTheme = parseInitialTheme(cookieStore.get("finly_theme")?.value);
+  const initialTavern = cookieStore.get("finly_tavern")?.value === "true";
   const initialDarkClass = initialTheme === "dark" ? "dark" : "";
+  const htmlClassName = [
+    inter.variable,
+    cinzel.variable,
+    initialDarkClass,
+    initialTavern ? "tavern" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <ConvexAuthNextjsServerProvider>
       <html
         lang="ru"
-        className={`${inter.variable} ${cinzel.variable} ${initialDarkClass}`}
+        className={htmlClassName}
         suppressHydrationWarning
       >
         <body className="bg-background text-foreground min-h-screen flex flex-col">
           <ConvexClientProvider>
             <ThemeProvider initialTheme={initialTheme}>
-              <TopNav />
-              <main className="max-w-screen-2xl mx-auto px-4 py-6 flex-1 w-full">
-                {children}
-              </main>
+              <TavernProvider initialTavern={initialTavern}>
+                <TopNav />
+                <main className="max-w-screen-2xl mx-auto px-4 py-6 flex-1 w-full">
+                  {children}
+                </main>
+              </TavernProvider>
             </ThemeProvider>
           </ConvexClientProvider>
         </body>
