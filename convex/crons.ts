@@ -51,4 +51,17 @@ const expireInvitesRef = "org/invites:expireOldInvites" as unknown as FunctionRe
 >;
 crons.daily("expire old invites", { hourUTC: 3, minuteUTC: 0 }, expireInvitesRef);
 
+const recordStoreAnniversariesRef =
+  "achievements:recordStoreAnniversaries" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    Record<string, never>,
+    number
+  >;
+crons.daily(
+  "record store anniversaries",
+  { hourUTC: 4, minuteUTC: 0 },
+  recordStoreAnniversariesRef,
+);
+
 export default crons;

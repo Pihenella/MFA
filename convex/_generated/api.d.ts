@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as achievements from "../achievements.js";
 import type * as actions from "../actions.js";
 import type * as admin_users from "../admin/users.js";
 import type * as analytics from "../analytics.js";
@@ -27,6 +28,7 @@ import type * as lib_authActions from "../lib/authActions.js";
 import type * as lib_emailRefs from "../lib/emailRefs.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_syncRefs from "../lib/syncRefs.js";
+import type * as migrations_backfillLegacyOrg from "../migrations/backfillLegacyOrg.js";
 import type * as migrations_seedDevData from "../migrations/seedDevData.js";
 import type * as migrations_seedLegacyUser from "../migrations/seedLegacyUser.js";
 import type * as org_invites from "../org/invites.js";
@@ -54,6 +56,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  achievements: typeof achievements;
   actions: typeof actions;
   "admin/users": typeof admin_users;
   analytics: typeof analytics;
@@ -73,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailRefs": typeof lib_emailRefs;
   "lib/helpers": typeof lib_helpers;
   "lib/syncRefs": typeof lib_syncRefs;
+  "migrations/backfillLegacyOrg": typeof migrations_backfillLegacyOrg;
   "migrations/seedDevData": typeof migrations_seedDevData;
   "migrations/seedLegacyUser": typeof migrations_seedLegacyUser;
   "org/invites": typeof org_invites;

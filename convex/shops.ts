@@ -6,6 +6,10 @@ import {
   ensureShopAccess,
   listUserShopIds,
 } from "./lib/helpers";
+import {
+  recordAchievementIfNew,
+  recordShopMilestonesForShop,
+} from "./achievements";
 
 /** @deprecated Use shops.listMine. Удалится в A.3 после миграции UI. */
 export const list = query({
@@ -42,8 +46,8 @@ export const add = mutation({
     ozonClientId: v.optional(v.string()),
   },
   handler: async (ctx, { orgId, marketplace, name, apiKey, ozonClientId }) => {
-    await ensureOrgOwner(ctx, orgId);
-    return await ctx.db.insert("shops", {
+    const { user } = await ensureOrgOwner(ctx, orgId);
+    const shopId = await ctx.db.insert("shops", {
       orgId,
       marketplace,
       name,
@@ -52,6 +56,16 @@ export const add = mutation({
       isActive: true,
       lastSyncAt: undefined,
     });
+    try {
+      await recordAchievementIfNew(ctx, {
+        userId: user._id,
+        kind: "firstShop",
+        payload: { shopId },
+      });
+    } catch (error) {
+      console.error("Failed to record firstShop achievement", error);
+    }
+    return shopId;
   },
 });
 
@@ -77,6 +91,11 @@ export const updateLastSync = internalMutation({
   args: { id: v.id("shops") },
   handler: async (ctx, { id }) => {
     await ctx.db.patch(id, { lastSyncAt: Date.now() });
+    try {
+      await recordShopMilestonesForShop(ctx, id);
+    } catch (error) {
+      console.error("Failed to record achievement milestones", error);
+    }
   },
 });
 

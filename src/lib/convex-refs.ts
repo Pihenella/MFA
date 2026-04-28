@@ -96,6 +96,21 @@ export const usersUpdateMonthlyProfitGoalRef =
     monthlyProfitGoal: number | null;
   }>;
 
+// ───────────────── achievements
+export const achievementsNewSinceLastSeenRef =
+  "achievements:newSinceLastSeen" as unknown as Q<
+    Record<string, never>,
+    Doc<"userAchievements">[]
+  >;
+export const achievementsMarkSeenRef =
+  "achievements:markSeen" as unknown as Mut<{
+    achievementId: Id<"userAchievements">;
+  }>;
+export const achievementsListAllRef = "achievements:listAll" as unknown as Q<
+  Record<string, never>,
+  Doc<"userAchievements">[]
+>;
+
 // ───────────────── auth
 export const verifyEmailRef = "auth/verifyEmail:verifyEmail" as unknown as Mut<
   { token: string },
