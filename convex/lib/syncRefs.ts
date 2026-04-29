@@ -84,10 +84,38 @@ export const logSyncRef =
     {
       shopId: Id<"shops">;
       endpoint: string;
-      status: "ok" | "error";
+      status: "ok" | "error" | "skipped";
       error?: string;
       count?: number;
     }
+  >;
+
+// sync/helpers:rate-limit guard
+export const getWbRateLimitGuardRef =
+  "sync/helpers:getWbRateLimitGuard" as unknown as FunctionReference<
+    "query",
+    "internal",
+    { shopId: Id<"shops">; endpoint: string },
+    { blockedUntil: number; retryAfterSeconds: number } | null
+  >;
+export const recordWbRateLimitGuardRef =
+  "sync/helpers:recordWbRateLimitGuard" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    {
+      shopId: Id<"shops">;
+      endpoint: string;
+      blockedUntil: number;
+      retryAfterSeconds: number;
+      statusCode?: number;
+      error?: string;
+    }
+  >;
+export const clearWbRateLimitGuardRef =
+  "sync/helpers:clearWbRateLimitGuard" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    { shopId: Id<"shops">; endpoint: string }
   >;
 
 // sync/syncContent:upsertProductCards

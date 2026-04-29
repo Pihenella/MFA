@@ -1,6 +1,14 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  recordWbRateLimitGuardFromError,
+  skipIfWbRateLimited,
+} from "./helpers";
 import { upsertProductCardsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertProductCards = internalMutation({
@@ -37,6 +45,8 @@ export const upsertProductCards = internalMutation({
 export const syncContent = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "content")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
 
     try {
@@ -68,10 +78,12 @@ export const syncContent = internalAction({
         cursor = data.cursor?.updatedAt ?? "";
         if (!cursor || cards.length < 100) break;
       }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "content");
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "content", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "content", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "content", status: "error" as const, error: e.message,
       });

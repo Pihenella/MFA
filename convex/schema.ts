@@ -166,7 +166,8 @@ export default defineSchema({
     orderId: v.string(),
     isCancel: v.boolean(),
   }).index("by_shop_date", ["shopId", "date"])
-    .index("by_order_id", ["orderId"]),
+    .index("by_order_id", ["orderId"])
+    .index("by_shop_order", ["shopId", "orderId"]),
 
   sales: defineTable({
     shopId: v.id("shops"),
@@ -181,7 +182,8 @@ export default defineSchema({
     isReturn: v.boolean(),
     warehouseName: v.string(),
   }).index("by_shop_date", ["shopId", "date"])
-    .index("by_sale_id", ["saleID"]),
+    .index("by_sale_id", ["saleID"])
+    .index("by_shop_sale", ["shopId", "saleID"]),
 
   stocks: defineTable({
     shopId: v.id("shops"),
@@ -249,16 +251,30 @@ export default defineSchema({
     clicks: v.number(),
     updatedAt: v.number(),
   }).index("by_shop", ["shopId"])
-    .index("by_campaign_id", ["campaignId"]),
+    .index("by_campaign_id", ["campaignId"])
+    .index("by_shop_campaign", ["shopId", "campaignId"]),
 
   syncLog: defineTable({
     shopId: v.id("shops"),
     syncedAt: v.number(),
     endpoint: v.string(),
-    status: v.union(v.literal("ok"), v.literal("error")),
+    status: v.union(v.literal("ok"), v.literal("error"), v.literal("skipped")),
     error: v.optional(v.string()),
+    count: v.optional(v.number()),
   }).index("by_shop", ["shopId"])
     .index("by_synced_at", ["syncedAt"]),
+
+  wbRateLimitGuards: defineTable({
+    shopId: v.id("shops"),
+    endpoint: v.string(),
+    blockedUntil: v.number(),
+    retryAfterSeconds: v.number(),
+    statusCode: v.optional(v.number()),
+    error: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_shop_endpoint", ["shopId", "endpoint"])
+    .index("by_blocked_until", ["blockedUntil"]),
 
   // --- New tables for extended WB API categories ---
 
@@ -284,7 +300,8 @@ export default defineSchema({
     createdDate: v.string(),
     isAnswered: v.boolean(),
   }).index("by_shop", ["shopId"])
-    .index("by_feedback_id", ["feedbackId"]),
+    .index("by_feedback_id", ["feedbackId"])
+    .index("by_shop_feedback", ["shopId", "feedbackId"]),
 
   questions: defineTable({
     shopId: v.id("shops"),
@@ -295,7 +312,8 @@ export default defineSchema({
     createdDate: v.string(),
     isAnswered: v.boolean(),
   }).index("by_shop", ["shopId"])
-    .index("by_question_id", ["questionId"]),
+    .index("by_question_id", ["questionId"])
+    .index("by_shop_question", ["shopId", "questionId"]),
 
   prices: defineTable({
     shopId: v.id("shops"),
@@ -317,7 +335,8 @@ export default defineSchema({
     warehouseName: v.string(),
     status: v.string(),
   }).index("by_shop", ["shopId"])
-    .index("by_return_id", ["returnId"]),
+    .index("by_return_id", ["returnId"])
+    .index("by_shop_return", ["shopId", "returnId"]),
 
   tariffs: defineTable({
     shopId: v.id("shops"),

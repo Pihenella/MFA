@@ -1,6 +1,14 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  recordWbRateLimitGuardFromError,
+  skipIfWbRateLimited,
+} from "./helpers";
 import {
   upsertOrdersRef,
   upsertSalesRef,
@@ -19,7 +27,9 @@ export const upsertOrders = internalMutation({
       const srid = String(o.srid ?? "");
       const existing = await ctx.db
         .query("orders")
-        .withIndex("by_order_id", (q) => q.eq("orderId", srid))
+        .withIndex("by_shop_order", (q) =>
+          q.eq("shopId", shopId).eq("orderId", srid)
+        )
         .first();
       const totalPrice = Number(o.totalPrice) || 0;
       const discountPercent = Number(o.discountPercent) || 0;
@@ -53,7 +63,9 @@ export const upsertSales = internalMutation({
     for (const s of sales) {
       const existing = await ctx.db
         .query("sales")
-        .withIndex("by_sale_id", (q) => q.eq("saleID", String(s.saleID)))
+        .withIndex("by_shop_sale", (q) =>
+          q.eq("shopId", shopId).eq("saleID", String(s.saleID ?? ""))
+        )
         .first();
       const row = {
         shopId,
@@ -162,6 +174,8 @@ export const upsertFinancials = internalMutation({
 export const syncOrders = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "orders")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     try {
@@ -175,10 +189,12 @@ export const syncOrders = internalAction({
       for (const batch of batches) {
         await ctx.runMutation(upsertOrdersRef, { shopId, orders: batch });
       }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "orders");
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "orders", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "orders", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "orders", status: "error" as const, error: e.message,
       });
@@ -189,6 +205,8 @@ export const syncOrders = internalAction({
 export const syncSales = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "sales")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
     const ninetyDaysAgo2 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     try {
@@ -202,10 +220,12 @@ export const syncSales = internalAction({
       for (const batch of batches) {
         await ctx.runMutation(upsertSalesRef, { shopId, sales: batch });
       }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "sales");
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "sales", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "sales", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "sales", status: "error" as const, error: e.message,
       });
@@ -216,6 +236,8 @@ export const syncSales = internalAction({
 export const syncStocks = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "stocks")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
     const oneDayAgo = new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10);
     try {
@@ -230,10 +252,12 @@ export const syncStocks = internalAction({
       for (const batch of batches) {
         await ctx.runMutation(insertStocksRef, { shopId, stocks: batch });
       }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "stocks");
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "stocks", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "stocks", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "stocks", status: "error" as const, error: e.message,
       });
@@ -244,6 +268,8 @@ export const syncStocks = internalAction({
 export const syncFinancials = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "financials")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
     const today = new Date().toISOString().slice(0, 10);
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
@@ -256,10 +282,11 @@ export const syncFinancials = internalAction({
         if (pageNum > 0) await new Promise((r) => setTimeout(r, 61000));
         pageNum++;
         const res = await fetchWithRetry(
-          `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${ninetyDaysAgo}&dateTo=${today}&limit=1000&rrdid=${rrdid}`,
+          `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod?dateFrom=${ninetyDaysAgo}&dateTo=${today}&limit=100000&rrdid=${rrdid}`,
           { headers },
         );
         await assertOk(res);
+        if (res.status === 204) break;
         const data = await res.json();
         if (!Array.isArray(data) || data.length === 0) break;
         totalCount += data.length;
@@ -267,13 +294,17 @@ export const syncFinancials = internalAction({
         for (const batch of batches) {
           await ctx.runMutation(upsertFinancialsRef, { shopId, rows: batch });
         }
-        rrdid = data[data.length - 1].rrd_id;
-        if (data.length < 1000) break;
+        const nextRrdid = Number(data[data.length - 1].rrd_id) || rrdid;
+        if (nextRrdid <= rrdid) break;
+        rrdid = nextRrdid;
+        if (data.length < 100000) break;
       }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "financials");
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "financials", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "financials", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "financials", status: "error" as const, error: e.message,
       });

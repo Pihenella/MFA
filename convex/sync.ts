@@ -2,7 +2,6 @@ import { internalMutation, internalAction } from "./_generated/server";
 import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
 import {
-  syncStatisticsRef,
   syncPromotionRef,
   syncContentRef,
   syncAnalyticsRef,
@@ -11,6 +10,10 @@ import {
   syncReturnsRef,
   syncTariffsRef,
   shopsUpdateLastSyncRef,
+  syncOrdersRef,
+  syncSalesRef,
+  syncStocksRef,
+  syncFinancialsRef,
 } from "./lib/syncRefs";
 
 // Pre-resolved refs обходят TS2589 (deep `internal` type instantiation).
@@ -48,7 +51,13 @@ export const syncShop = internalAction({
       const category = categories[i];
       switch (category) {
         case "statistics":
-          await ctx.runAction(syncStatisticsRef, { shopId, apiKey });
+          await ctx.runAction(syncOrdersRef, { shopId, apiKey });
+          await new Promise((r) => setTimeout(r, 65_000));
+          await ctx.runAction(syncSalesRef, { shopId, apiKey });
+          await new Promise((r) => setTimeout(r, 65_000));
+          await ctx.runAction(syncStocksRef, { shopId, apiKey });
+          await new Promise((r) => setTimeout(r, 65_000));
+          await ctx.runAction(syncFinancialsRef, { shopId, apiKey });
           break;
         case "promotion":
           await ctx.runAction(syncPromotionRef, { shopId, apiKey });

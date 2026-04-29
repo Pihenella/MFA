@@ -1,6 +1,14 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  recordWbRateLimitGuardFromError,
+  skipIfWbRateLimited,
+} from "./helpers";
 import { upsertCampaignsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertCampaigns = internalMutation({
@@ -9,7 +17,9 @@ export const upsertCampaigns = internalMutation({
     for (const c of campaigns) {
       const existing = await ctx.db
         .query("campaigns")
-        .withIndex("by_campaign_id", (q) => q.eq("campaignId", c.campaignId))
+        .withIndex("by_shop_campaign", (q) =>
+          q.eq("shopId", shopId).eq("campaignId", Number(c.campaignId) || 0)
+        )
         .first();
       const row = {
         shopId,
@@ -33,6 +43,8 @@ export const upsertCampaigns = internalMutation({
 export const syncPromotion = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "campaigns")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
 
     try {
@@ -61,7 +73,7 @@ export const syncPromotion = internalAction({
             `https://advert-api.wildberries.ru/adv/v3/fullstats?ids=${idsParam}&beginDate=${thirtyDaysAgo}&endDate=${today}`,
             { headers },
           );
-          if (!statsRes.ok) continue;
+          await assertOk(statsRes);
           const statsData: any[] = await statsRes.json();
           if (!Array.isArray(statsData)) continue;
           for (const stat of statsData) {
@@ -102,15 +114,18 @@ export const syncPromotion = internalAction({
         for (const batch of campaignBatches) {
           await ctx.runMutation(upsertCampaignsRef, { shopId, campaigns: batch });
         }
+        await clearWbRateLimitGuardForEndpoint(ctx, shopId, "campaigns");
         await ctx.runMutation(logSyncRef, {
           shopId, endpoint: "campaigns", status: "ok" as const, count: allCampaigns.length,
         });
       } else {
+        await clearWbRateLimitGuardForEndpoint(ctx, shopId, "campaigns");
         await ctx.runMutation(logSyncRef, {
           shopId, endpoint: "campaigns", status: "ok" as const, count: 0,
         });
       }
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "campaigns", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "campaigns", status: "error" as const, error: e.message,
       });

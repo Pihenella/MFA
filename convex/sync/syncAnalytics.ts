@@ -1,6 +1,14 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { chunk, BATCH_SIZE } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  clearWbRateLimitGuardForEndpoint,
+  isWbRateLimitError,
+  recordWbRateLimitGuardFromError,
+  skipIfWbRateLimited,
+  throwIfWbRateLimited,
+} from "./helpers";
 import { upsertNmReportsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertNmReports = internalMutation({
@@ -41,33 +49,32 @@ export const upsertNmReports = internalMutation({
   },
 });
 
-// Один запрос к WB Analytics API с retry.
-// Глобальный лимит WB сбрасывается ~1 раз в минуту.
-// При 429 ждём 60с × attempt, чтобы дать лимиту восстановиться.
 async function fetchAnalyticsPage(
   headers: Record<string, string>,
   body: object,
-  retries = 4,
+  retries = 3,
 ): Promise<any> {
   const url = `https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products`;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
       const res = await fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
-      if (res.status === 429 && attempt < retries) {
-        // Ждём 60с, 120с, 180с, 240с — дать глобальному лимиту восстановиться
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 60_000));
-        continue;
-      }
+      clearTimeout(timeout);
+      await throwIfWbRateLimited(res);
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`HTTP ${res.status}: ${text.slice(0, 500)}`);
       }
       return await res.json();
     } catch (e) {
+      clearTimeout(timeout);
+      if (isWbRateLimitError(e)) throw e;
       if (attempt < retries) {
         await new Promise((r) => setTimeout(r, (attempt + 1) * 30_000));
         continue;
@@ -84,7 +91,8 @@ async function fetchAnalyticsForPeriod(
   end: string,
 ): Promise<any[]> {
   const allProducts: any[] = [];
-  let page = 1;
+  const limit = 1000;
+  let offset = 0;
   while (true) {
     const body = {
       nmIds: [],
@@ -92,15 +100,16 @@ async function fetchAnalyticsForPeriod(
       subjectIds: [],
       tagIds: [],
       selectedPeriod: { start, end },
-      page,
+      limit,
+      offset,
     };
     const data = await fetchAnalyticsPage(headers, body);
     const products = data.data?.products ?? data.data?.cards ?? [];
     if (!Array.isArray(products) || products.length === 0) break;
     allProducts.push(...products);
-    const isLastPage = data.data?.isNextPage === false || products.length < 20;
+    const isLastPage = products.length < limit || data.data?.isNextPage === false;
     if (isLastPage) break;
-    page++;
+    offset += products.length;
     // Analytics API: 3 req/min + global limiter — ждём 30с между страницами
     await new Promise((r) => setTimeout(r, 30_000));
   }
@@ -137,6 +146,8 @@ function mapProducts(products: any[], start: string, end: string) {
 export const syncAnalytics = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "analytics")) return;
+
     const headers: Record<string, string> = {
       Authorization: apiKey,
       "Content-Type": "application/json",
@@ -151,10 +162,12 @@ export const syncAnalytics = internalAction({
       for (const batch of batches) {
         await ctx.runMutation(upsertNmReportsRef, { shopId, reports: batch });
       }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "analytics");
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "analytics", status: "ok" as const, count: mapped.length,
       });
     } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "analytics", e);
       await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "analytics", status: "error" as const, error: e.message,
       });
@@ -166,17 +179,39 @@ export const syncAnalytics = internalAction({
 export const fetchAnalyticsForRange = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string(), dateFrom: v.string(), dateTo: v.string() },
   handler: async (ctx, { shopId, apiKey, dateFrom, dateTo }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "analytics", "analytics:range")) {
+      return 0;
+    }
+
     const headers: Record<string, string> = {
       Authorization: apiKey,
       "Content-Type": "application/json",
     };
 
-    const products = await fetchAnalyticsForPeriod(headers, dateFrom, dateTo);
-    const mapped = mapProducts(products, dateFrom, dateTo);
-    const batches = chunk(mapped, BATCH_SIZE);
-    for (const batch of batches) {
-      await ctx.runMutation(upsertNmReportsRef, { shopId, reports: batch });
+    try {
+      const products = await fetchAnalyticsForPeriod(headers, dateFrom, dateTo);
+      const mapped = mapProducts(products, dateFrom, dateTo);
+      const batches = chunk(mapped, BATCH_SIZE);
+      for (const batch of batches) {
+        await ctx.runMutation(upsertNmReportsRef, { shopId, reports: batch });
+      }
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "analytics");
+      await ctx.runMutation(logSyncRef, {
+        shopId,
+        endpoint: "analytics:range",
+        status: "ok" as const,
+        count: mapped.length,
+      });
+      return mapped.length;
+    } catch (e: any) {
+      await recordWbRateLimitGuardFromError(ctx, shopId, "analytics", e);
+      await ctx.runMutation(logSyncRef, {
+        shopId,
+        endpoint: "analytics:range",
+        status: "error" as const,
+        error: e.message,
+      });
+      throw e;
     }
-    return mapped.length;
   },
 });

@@ -92,7 +92,7 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
     }
   }
 
-  const hasErrors = [...latestByEndpoint.values()].some((l) => l.status === "error");
+  const hasDetails = [...latestByEndpoint.values()].some((l) => l.status !== "ok");
 
   if (latestByEndpoint.size === 0) return null;
 
@@ -108,17 +108,24 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
               </FinlyBadge>
             );
           }
+          const isOk = log.status === "ok";
+          const isSkipped = log.status === "skipped";
+          const label = isOk
+            ? `OK${log.count !== undefined ? ` (${log.count})` : ""}`
+            : isSkipped
+              ? "Пауза WB"
+              : "Ошибка";
           return (
             <FinlyBadge
               key={ep}
-              tone={log.status === "ok" ? "success" : "danger"}
+              tone={isOk ? "success" : isSkipped ? "gold" : "danger"}
             >
-              {ep}: {log.status === "ok" ? "OK" : "Ошибка"}
+              {ep}: {label}
             </FinlyBadge>
           );
         })}
       </div>
-      {hasErrors && (
+      {hasDetails && (
         <div className="mt-3">
           <FinlyButton
             variant="ghost"
@@ -132,16 +139,22 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
           {expanded && (
             <div className="mt-2 space-y-2 text-xs text-muted-foreground">
               {logs
-                .filter((l) => l.status === "error")
+                .filter((l) => l.status !== "ok")
                 .slice(0, 10)
                 .map((l) => (
                   <div
                     key={l._id}
-                    className="rounded-frame border border-rune-danger/30 bg-rune-danger/10 p-3"
+                    className={`rounded-frame border p-3 ${
+                      l.status === "skipped"
+                        ? "border-gold-frame/30 bg-gold-frame/10"
+                        : "border-rune-danger/30 bg-rune-danger/10"
+                    }`}
                   >
                     <span className="font-medium text-foreground">{l.endpoint}</span>{" "}
                     <span>{new Date(l.syncedAt).toLocaleString("ru-RU")}</span>
-                    <div className="mt-1 text-rune-danger">{l.error}</div>
+                    <div className={`mt-1 ${l.status === "skipped" ? "text-gold-frame" : "text-rune-danger"}`}>
+                      {l.error}
+                    </div>
                   </div>
                 ))}
             </div>

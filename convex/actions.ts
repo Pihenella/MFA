@@ -58,8 +58,9 @@ export const triggerSync = action({
       });
     }
 
-    // Обновить lastSyncAt после последней запланированной задачи
-    await ctx.scheduler.runAfter(720_000, shopsUpdateLastSyncRef, { id: shopId });
+    // Обновить lastSyncAt после длинных фоновых задач. Financials/analytics могут
+    // ждать WB rate limit, поэтому не ставим отметку слишком рано.
+    await ctx.scheduler.runAfter(25 * 60_000, shopsUpdateLastSyncRef, { id: shopId });
   },
 });
 
