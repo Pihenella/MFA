@@ -148,6 +148,7 @@ export default defineSchema({
     isActive: v.boolean(),
     lastSyncAt: v.optional(v.number()),
     enabledCategories: v.optional(v.array(v.string())),
+    taxRatePercent: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_marketplace", ["orgId", "marketplace"]),

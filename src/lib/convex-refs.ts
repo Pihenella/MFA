@@ -58,6 +58,11 @@ export const shopsUpdateCategoriesRef =
     id: Id<"shops">;
     enabledCategories: string[];
   }>;
+export const shopsUpdateTaxRateRef =
+  "shops:updateTaxRate" as unknown as Mut<{
+    id: Id<"shops">;
+    taxRatePercent: number;
+  }>;
 
 // ───────────────── users
 export type CurrentUser = {

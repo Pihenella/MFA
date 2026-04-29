@@ -317,24 +317,48 @@ export const getReturns = query({
         return d >= dateFrom && d <= dateTo;
       });
     };
+    const financialReturnsForShop = async (sid: typeof shopId) => {
+      if (!dateFrom || !dateTo) return [];
+      const rows = await ctx.db
+        .query("financials")
+        .withIndex("by_shop_rrdt", (q) =>
+          q.eq("shopId", sid!).gte("rrDt", dateFrom).lte("rrDt", dateTo)
+        )
+        .collect();
+      return rows
+        .filter((row) => row.docTypeName === "Возврат" && row.nmId > 0)
+        .map((row) => ({
+          _id: row._id,
+          _creationTime: row._creationTime,
+          shopId: row.shopId,
+          returnId: `financial:${row._id}`,
+          nmId: row.nmId,
+          orderId: row.supplierArticle,
+          returnDate: row.rrDt ?? row.dateFrom,
+          warehouseName: row.warehouseName,
+          status: "Возврат по отчету WB",
+        }));
+    };
     if (shopId) {
       await ensureShopAccess(ctx, shopId);
       const results = await ctx.db
         .query("returns")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
-      return filterByDate(results);
+      const financialReturns = await financialReturnsForShop(shopId);
+      return [...filterByDate(results), ...financialReturns];
     }
     const shopIds = await listUserShopIds(ctx);
-    const results = await Promise.all(
-      shopIds.map((sid) =>
+    const [claims, financialReturns] = await Promise.all([
+      Promise.all(shopIds.map((sid) =>
         ctx.db
           .query("returns")
           .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
-      )
-    );
-    return filterByDate(results.flat());
+      )),
+      Promise.all(shopIds.map((sid) => financialReturnsForShop(sid))),
+    ]);
+    return [...filterByDate(claims.flat()), ...financialReturns.flat()];
   },
 });
 

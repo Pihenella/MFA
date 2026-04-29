@@ -1,5 +1,13 @@
 import { isAdDeduction } from "./metrics";
 
+const DEFAULT_TAX_RATE_PERCENT = 6;
+
+function taxRateFraction(ratePercent: number | null | undefined): number {
+  const value = ratePercent ?? DEFAULT_TAX_RATE_PERCENT;
+  if (!Number.isFinite(value)) return DEFAULT_TAX_RATE_PERCENT / 100;
+  return Math.max(0, Math.min(100, value)) / 100;
+}
+
 type FinancialRow = {
   realizationreportId: number;
   dateFrom: string;
@@ -172,7 +180,9 @@ export function groupByReportFull(
   shopName: string,
   costMap: Map<number, number>,
   _campaignsSpent: number,
+  taxRatePercent = DEFAULT_TAX_RATE_PERCENT,
 ): MpfactReportRow[] {
+  const taxRate = taxRateFraction(taxRatePercent);
   const map = new Map<number, {
     reportId: number;
     dateFrom: string;
@@ -281,8 +291,7 @@ export function groupByReportFull(
     const adsForReport = s.adDeductions;
     const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsForReport + Math.abs(s.otherDeductions) - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses;
-    // Налог = 6% от выручки со скидкой WB
-    const tax = revenueWbDisc * 0.06;
+    const tax = revenueWbDisc * taxRate;
     const profit = profitBeforeTax - tax;
     const roi = costTotal > 0 ? (profit / costTotal) * 100 : 0;
 
@@ -296,7 +305,7 @@ export function groupByReportFull(
       profitPct: pct(profit, revenueSeller),
       roi,
       salesSeller: s.salesSeller,
-      returnsSeller: s.returnsSeller,
+      returnsSeller: -s.returnsSeller,
       revenueSeller,
       salesWbDisc: s.salesWbDisc,
       returnsWbDisc: -s.returnsWbDisc,
@@ -305,9 +314,9 @@ export function groupByReportFull(
       forPayReturns: -s.forPayReturns,
       forPayTotal,
       salesQty: s.salesQty,
-      returnsQty: s.returnsQty,
+      returnsQty: -s.returnsQty,
       buyoutsQty,
-      returnsPct,
+      returnsPct: -returnsPct,
       costTotal: -costTotal,
       costPct: pct(-costTotal, revenueSeller),
       grossProfit,
@@ -398,7 +407,9 @@ export function groupByPeriodFull(
   granularity: "day" | "week" | "month",
   costMap: Map<number, number>,
   _campaignsSpent: number,
+  taxRatePercent = DEFAULT_TAX_RATE_PERCENT,
 ): MpfactDetailRow[] {
+  const taxRate = taxRateFraction(taxRatePercent);
   const getKey = (dateStr: string): string => {
     if (granularity === "day") return dateStr;
     if (granularity === "month") return dateStr.slice(0, 7);
@@ -521,7 +532,7 @@ export function groupByPeriodFull(
     const adsForPeriod = adDed;
     const mpExpenses = commission + Math.abs(s.logistics) + Math.abs(s.storage) + Math.abs(s.acceptance) + Math.abs(s.penalties) + adsForPeriod + Math.abs(othDed) - s.surcharges;
     const profitBeforeTax = grossProfit - mpExpenses;
-    const tax = revenueWbDisc * 0.06;
+    const tax = revenueWbDisc * taxRate;
     const profit = profitBeforeTax - tax;
     const roi = costTotal > 0 ? (profit / costTotal) * 100 : 0;
 
@@ -536,7 +547,7 @@ export function groupByPeriodFull(
       profitPct: pct(profit, revenueSeller),
       roi,
       salesSeller: s.salesSeller,
-      returnsSeller: s.returnsSeller,
+      returnsSeller: -s.returnsSeller,
       revenueSeller,
       salesWbDisc: s.salesWbDisc,
       returnsWbDisc: -s.returnsWbDisc,
@@ -545,9 +556,9 @@ export function groupByPeriodFull(
       forPayReturns: -s.forPayReturns,
       forPayTotal,
       salesQty: s.salesQty,
-      returnsQty: s.returnsQty,
+      returnsQty: -s.returnsQty,
       buyoutsQty,
-      returnsPct,
+      returnsPct: -returnsPct,
       costTotal: -costTotal,
       costPct: pct(-costTotal, revenueSeller),
       grossProfit,

@@ -85,8 +85,8 @@ const REPORT_COLUMNS: {
   { key: "otherCharges", label: "Прочие начисления, ₽", type: "money" },
   { key: "otherChargesPct", label: "Прочие начисления, %", type: "pct" },
   { key: "mpExpenses", label: "Расходы МП, ₽", type: "money" },
-  { key: "profitBeforeTax", label: "Маржинальная прибыль, ₽", type: "money" },
-  { key: "profitBeforeTaxPct", label: "Маржинальная прибыль, %", type: "pct" },
+  { key: "profitBeforeTax", label: "Прибыль без налога, ₽", type: "money" },
+  { key: "profitBeforeTaxPct", label: "% прибыли без налога", type: "pct" },
   { key: "tax", label: "Налог, ₽", type: "money" },
   { key: "taxPct", label: "Налог, %", type: "pct" },
   { key: "payoutToAccount", label: "К выплате на р/с, ₽", type: "money" },
@@ -140,8 +140,8 @@ const DETAIL_COLUMNS: {
   { key: "otherCharges", label: "Прочие начисления, ₽", type: "money" },
   { key: "otherChargesPct", label: "Прочие начисления, %", type: "pct" },
   { key: "mpExpenses", label: "Расходы МП, ₽", type: "money" },
-  { key: "profitBeforeTax", label: "Маржинальная прибыль, ₽", type: "money" },
-  { key: "profitBeforeTaxPct", label: "Маржинальная прибыль, %", type: "pct" },
+  { key: "profitBeforeTax", label: "Прибыль без налога, ₽", type: "money" },
+  { key: "profitBeforeTaxPct", label: "% прибыли без налога", type: "pct" },
   { key: "tax", label: "Налог, ₽", type: "money" },
   { key: "taxPct", label: "Налог, %", type: "pct" },
 ];
@@ -221,8 +221,9 @@ function FinancialsContent() {
   );
 
   const activeShopId = (shopId || shops[0]?._id) as Id<"shops"> | undefined;
-  const activeShopName =
-    shops.find((s) => s._id === activeShopId)?.name ?? "";
+  const activeShop = shops.find((s) => s._id === activeShopId);
+  const activeShopName = activeShop?.name ?? "";
+  const activeTaxRate = activeShop?.taxRatePercent ?? 6;
 
   const rows =
     useQuery(
@@ -257,12 +258,14 @@ function FinancialsContent() {
     activeShopName,
     costMap,
     campaignsSpent,
+    activeTaxRate,
   );
   const detailRows = groupByPeriodFull(
     rows as any,
     granularity,
     costMap,
     campaignsSpent,
+    activeTaxRate,
   );
   const penalties = rows.filter(
     (r) => r.docTypeName === "Штраф" || r.penalty > 0,

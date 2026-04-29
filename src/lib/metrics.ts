@@ -17,6 +17,7 @@ export type Order = {
 };
 
 export type Financial = {
+  shopId?: string;
   deliveryAmount: number;
   deliveryRub?: number;
   stornoDeliveryAmount: number;
@@ -67,6 +68,11 @@ export type DashboardInput = {
   costs: Cost[];
   campaigns: Campaign[];
   nmReports: NmReport[];
+};
+
+export type TaxRateOptions = {
+  taxRatePercent?: number | null;
+  taxRatesByShopId?: Record<string, number | null | undefined>;
 };
 
 export type DashboardMetrics = {
@@ -137,10 +143,24 @@ export type DashboardMetrics = {
   returnsNoCost: number;
 };
 
-const TAX_RATE = 0.06; // УСН 6%
+export const DEFAULT_TAX_RATE_PERCENT = 6;
 
-export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics {
+function taxRateFraction(ratePercent: number | null | undefined): number {
+  const value = ratePercent ?? DEFAULT_TAX_RATE_PERCENT;
+  if (!Number.isFinite(value)) return DEFAULT_TAX_RATE_PERCENT / 100;
+  return Math.max(0, Math.min(100, value)) / 100;
+}
+
+export function computeDashboardMetrics(
+  input: DashboardInput,
+  taxOptions: TaxRateOptions = {},
+): DashboardMetrics {
   const { orders, financials, costs, campaigns, nmReports } = input;
+  const fallbackTaxRate = taxRateFraction(taxOptions.taxRatePercent);
+  const taxRateForShop = (shopId: string | undefined) => {
+    if (!shopId) return fallbackTaxRate;
+    return taxRateFraction(taxOptions.taxRatesByShopId?.[shopId] ?? taxOptions.taxRatePercent);
+  };
 
   const costMap = new Map<number, number>();
   for (const c of costs) costMap.set(c.nmId, c.cost);
@@ -180,6 +200,21 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   const salesWbDisc = salesFin.reduce((s, f) => s + (f.retailAmount ?? 0), 0);
   const returnsWbDisc = returnsFin.reduce((s, f) => s + Math.abs(f.retailAmount ?? 0), 0);
   const revenueWbDisc = salesWbDisc - returnsWbDisc;
+  const revenueWbDiscByShop = new Map<string, number>();
+  for (const f of salesFin) {
+    const shopKey = f.shopId ?? "__default";
+    revenueWbDiscByShop.set(
+      shopKey,
+      (revenueWbDiscByShop.get(shopKey) ?? 0) + (f.retailAmount ?? 0),
+    );
+  }
+  for (const f of returnsFin) {
+    const shopKey = f.shopId ?? "__default";
+    revenueWbDiscByShop.set(
+      shopKey,
+      (revenueWbDiscByShop.get(shopKey) ?? 0) - Math.abs(f.retailAmount ?? 0),
+    );
+  }
 
   // ── К перечислению (ppvzForPay) ──
   const forPaySales = salesFin.reduce((s, f) => s + (f.ppvzForPay || 0), 0);
@@ -279,8 +314,12 @@ export function computeDashboardMetrics(input: DashboardInput): DashboardMetrics
   const profitBeforeTax = grossProfit - mpExpenses;
   const profitBeforeTaxPercent = pct(profitBeforeTax);
 
-  // ── Налог (УСН 6% от выручки со скидкой WB — как в МП Факт) ──
-  const tax = revenueWbDisc * TAX_RATE;
+  // ── Налог от выручки со скидкой WB, со ставкой конкретного магазина ──
+  const tax = [...revenueWbDiscByShop.entries()].reduce(
+    (sum, [shopId, revenue]) =>
+      sum + revenue * taxRateForShop(shopId === "__default" ? undefined : shopId),
+    0,
+  );
   const taxPercent = pct(tax);
 
   // ── Чистая прибыль ──

@@ -38,9 +38,12 @@ export function DashboardContent() {
   const [tab, setTab] = useState<"all" | "wb" | "ozon">("all");
 
   const { now, prev } = useDashboardData(period, comparePeriod, shopId);
+  const taxRatesByShopId = Object.fromEntries(
+    shops.map((shop) => [shop._id, shop.taxRatePercent ?? 6]),
+  );
 
-  const mNow = computeDashboardMetrics(now);
-  const mPrev = computeDashboardMetrics(prev);
+  const mNow = computeDashboardMetrics(now, { taxRatesByShopId });
+  const mPrev = computeDashboardMetrics(prev, { taxRatesByShopId });
 
   const costSet = new Set(now.costs.filter((c) => c.cost > 0).map((c) => c.nmId));
   const finNmIds = new Set(now.financials.filter((f) => f.docTypeName === "Продажа").map((f) => f.nmId));

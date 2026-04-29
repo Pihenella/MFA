@@ -35,8 +35,13 @@ type RecordAchievementArgs = {
 };
 
 const AD_BONUS_PREFIX = "Оказание услуг «WB Продвижение»";
-const TAX_RATE = 0.06;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function taxRateFraction(ratePercent: number | undefined): number {
+  const value = ratePercent ?? 6;
+  if (!Number.isFinite(value)) return 0.06;
+  return Math.max(0, Math.min(100, value)) / 100;
+}
 
 export async function recordAchievementIfNew(
   ctx: Pick<MutationCtx, "db">,
@@ -126,6 +131,8 @@ export async function recordShopMilestonesForShop(
 ): Promise<void> {
   const ownerId = await getShopOwnerId(ctx, shopId);
   if (!ownerId) return;
+  const shop = await ctx.db.get(shopId);
+  if (!shop) return;
 
   const [sales, financials, costs, feedbacks] = await Promise.all([
     ctx.db
@@ -174,7 +181,7 @@ export async function recordShopMilestonesForShop(
     });
   }
 
-  const totalMetrics = calculateProfit(financials, costs);
+  const totalMetrics = calculateProfit(financials, costs, shop.taxRatePercent);
   if (totalMetrics.profit >= 1_000_000) {
     await recordAchievementIfNew(ctx, {
       userId: ownerId,
@@ -190,6 +197,7 @@ export async function recordShopMilestonesForShop(
     const monthMetrics = calculateProfit(
       financials.filter((row) => financialDate(row).startsWith(monthLabel)),
       costs,
+      shop.taxRatePercent,
     );
 
     if (monthMetrics.profit >= monthlyProfitGoal) {
@@ -212,7 +220,7 @@ export async function recordShopMilestonesForShop(
   const recentFinancials = financials.filter(
     (row) => financialDate(row) >= weekStart,
   );
-  const recentMetrics = calculateProfit(recentFinancials, costs);
+  const recentMetrics = calculateProfit(recentFinancials, costs, shop.taxRatePercent);
   if (recentMetrics.salesCount > 0 && recentMetrics.returnsCount === 0) {
     await recordAchievementIfNew(ctx, {
       userId: ownerId,
@@ -263,7 +271,9 @@ async function getShopOwnerId(
 function calculateProfit(
   financials: Doc<"financials">[],
   costs: Doc<"costs">[],
+  taxRatePercent?: number,
 ): { profit: number; salesCount: number; returnsCount: number } {
+  const taxRate = taxRateFraction(taxRatePercent);
   const costMap = new Map<number, number>();
   for (const cost of costs) costMap.set(cost.nmId, cost.cost);
 
@@ -285,6 +295,15 @@ function calculateProfit(
     0,
   );
   const revenueSeller = salesSeller - returnsSeller;
+  const salesWbDisc = salesFin.reduce(
+    (sum, row) => sum + (row.retailAmount ?? 0),
+    0,
+  );
+  const returnsWbDisc = returnsFin.reduce(
+    (sum, row) => sum + Math.abs(row.retailAmount ?? 0),
+    0,
+  );
+  const revenueWbDisc = salesWbDisc - returnsWbDisc;
 
   const forPaySales = salesFin.reduce(
     (sum, row) => sum + (row.ppvzForPay || 0),
@@ -346,7 +365,7 @@ function calculateProfit(
     otherDeductions -
     compensation;
   const profitBeforeTax = grossProfit - mpExpenses;
-  const tax = profitBeforeTax > 0 ? profitBeforeTax * TAX_RATE : 0;
+  const tax = revenueWbDisc * taxRate;
 
   return {
     profit: profitBeforeTax - tax,

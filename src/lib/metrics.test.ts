@@ -166,6 +166,19 @@ describe("computeDashboardMetrics — financials-based (МП Факт форму
     expect(result.tax).toBe(600); // 10000 * 0.06
   });
 
+  it("applies tax rates per shop when financials are aggregated", () => {
+    const financials = [
+      makeFinancial({ shopId: "shop-a", retailAmount: 10000, docTypeName: "Продажа" }),
+      makeFinancial({ shopId: "shop-b", retailAmount: 20000, docTypeName: "Продажа" }),
+      makeFinancial({ shopId: "shop-b", retailAmount: -5000, docTypeName: "Возврат" }),
+    ];
+    const result = computeDashboardMetrics(
+      { ...emptyInput, financials },
+      { taxRatesByShopId: { "shop-a": 6, "shop-b": 15 } },
+    );
+    expect(result.tax).toBe(2850); // 10000*6% + (20000-5000)*15%
+  });
+
   it("counts sales/returns from financials rows", () => {
     const financials = [
       makeFinancial({ retailAmount: 5000, docTypeName: "Продажа", nmId: 1 }),

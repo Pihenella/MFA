@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 describe("convex/shops auth coverage", () => {
   const src = readFileSync("convex/shops.ts", "utf8");
 
-  it.each(["add", "remove", "setActive", "updateCategories", "getSyncLog"])(
+  it.each(["add", "remove", "setActive", "updateCategories", "updateTaxRate", "getSyncLog"])(
     "%s handler calls ensureShopAccess or ensureOrgOwner",
     (fn) => {
       const fnRegex = new RegExp(`export const ${fn} = mutation|export const ${fn} = query`);

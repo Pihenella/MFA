@@ -55,6 +55,7 @@ export const add = mutation({
       ozonClientId,
       isActive: true,
       lastSyncAt: undefined,
+      taxRatePercent: 6,
     });
     try {
       await recordAchievementIfNew(ctx, {
@@ -110,6 +111,22 @@ export const updateCategories = mutation({
   },
 });
 
+export const updateTaxRate = mutation({
+  args: {
+    id: v.id("shops"),
+    taxRatePercent: v.number(),
+  },
+  handler: async (ctx, { id, taxRatePercent }) => {
+    await ensureShopAccess(ctx, id);
+    if (!Number.isFinite(taxRatePercent) || taxRatePercent < 0 || taxRatePercent > 100) {
+      throw new Error("taxRatePercent must be between 0 and 100");
+    }
+    await ctx.db.patch(id, {
+      taxRatePercent: Math.round(taxRatePercent * 100) / 100,
+    });
+  },
+});
+
 export const enableAllCategoriesForAll = internalMutation({
   handler: async (ctx) => {
     const all = [
@@ -118,7 +135,10 @@ export const enableAllCategoriesForAll = internalMutation({
     ];
     const shops = await ctx.db.query("shops").collect();
     for (const s of shops) {
-      await ctx.db.patch(s._id, { enabledCategories: all });
+      await ctx.db.patch(s._id, {
+        enabledCategories: all,
+        taxRatePercent: s.taxRatePercent ?? 6,
+      });
     }
   },
 });

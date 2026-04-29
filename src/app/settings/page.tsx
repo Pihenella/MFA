@@ -6,6 +6,7 @@ import {
   shopsAddRef,
   shopsRemoveRef,
   shopsUpdateCategoriesRef,
+  shopsUpdateTaxRateRef,
   triggerSyncRef,
   usersUpdateMonthlyProfitGoalRef,
 } from "@/lib/convex-refs";
@@ -206,6 +207,82 @@ function CategoryCheckboxes({ shopId, current }: { shopId: Id<"shops">; current:
         ))}
       </div>
     </div>
+  );
+}
+
+function TaxRateControl({ shop }: { shop: Shop }) {
+  const updateTaxRate = useMutation(shopsUpdateTaxRateRef);
+  const current = shop.taxRatePercent ?? 6;
+  const [value, setValue] = useState(String(current));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(String(current));
+    setSaved(false);
+    setError(null);
+  }, [current]);
+
+  const normalizedValue = value.trim().replace(",", ".");
+  const parsed = Number(normalizedValue);
+  const invalid = normalizedValue === "" || !Number.isFinite(parsed) || parsed < 0 || parsed > 100;
+  const changed = !invalid && Math.round(parsed * 100) / 100 !== current;
+
+  return (
+    <form
+      className="grid gap-3 rounded-frame border border-border bg-background/60 p-3 md:grid-cols-[minmax(0,1fr)_10rem_auto] md:items-end"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (invalid || !changed) return;
+        setSaving(true);
+        setSaved(false);
+        setError(null);
+        try {
+          await updateTaxRate({
+            id: shop._id,
+            taxRatePercent: Math.round(parsed * 100) / 100,
+          });
+          setSaved(true);
+        } catch (err) {
+          setError((err as Error).message || "Ошибка сохранения");
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <div>
+        <div className="text-sm font-medium text-foreground">Налоговая ставка</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Используется в P&L, аналитике и дашборде именно для этого магазина.
+        </div>
+        {invalid && (
+          <div className="mt-1 text-xs text-rune-danger">Введите значение от 0 до 100.</div>
+        )}
+        {error && <div className="mt-1 text-xs text-rune-danger">{error}</div>}
+        {saved && <div className="mt-1 text-xs text-rune-success">Сохранено.</div>}
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={`tax-${shop._id}`}>Ставка, %</Label>
+        <Input
+          id={`tax-${shop._id}`}
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          inputMode="decimal"
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setSaved(false);
+          }}
+        />
+      </div>
+      <FinlyButton type="submit" size="sm" disabled={saving || invalid || !changed}>
+        <Save className="mr-2 h-4 w-4" />
+        {saving ? "Сохраняем…" : "Сохранить"}
+      </FinlyButton>
+    </form>
   );
 }
 
@@ -614,6 +691,8 @@ function SettingsPageInner() {
                       Синхронизация запланирована. Данные обновятся в течение 10 минут.
                     </div>
                   )}
+
+                  <TaxRateControl shop={shop} />
 
                   <CategoryCheckboxes
                     shopId={shop._id}
