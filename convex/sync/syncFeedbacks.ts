@@ -6,8 +6,11 @@ import {
   fetchWithRetry,
   assertOk,
   clearWbRateLimitGuardForEndpoint,
-  recordWbRateLimitGuardFromError,
+  getLatestWbSyncAttempt,
+  isWbBaseToken,
+  logSyncFailure,
   skipIfWbRateLimited,
+  skipIfWbSyncTooSoon,
 } from "./helpers";
 import { upsertFeedbacksRef, upsertQuestionsRef, logSyncRef } from "../lib/syncRefs";
 
@@ -75,12 +78,16 @@ export const syncFeedbacks = internalAction({
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
     const thirtyDaysAgo = Math.floor((Date.now() - 30 * 86400000) / 1000);
+    const baseToken = isWbBaseToken(apiKey);
+    const communicationEndpoints = ["feedbacks", "questions"];
 
     const fetchPaged = async (
       kind: "feedbacks" | "questions",
       isAnswered: boolean,
+      maxPages = Number.POSITIVE_INFINITY,
     ) => {
       let skip = 0;
+      let pageCount = 0;
       const total: any[] = [];
       while (true) {
         const res = await fetchWithRetry(
@@ -92,53 +99,63 @@ export const syncFeedbacks = internalAction({
         const items = data.data?.[kind] ?? [];
         if (!Array.isArray(items) || items.length === 0) break;
         total.push(...items);
+        pageCount++;
+        if (pageCount >= maxPages) break;
         if (items.length < 5000) break;
         skip += items.length;
       }
       return total;
     };
 
-    // Feedbacks
-    if (!(await skipIfWbRateLimited(ctx, shopId, "feedbacks"))) {
-      try {
-        const feedbacks = [
-          ...(await fetchPaged("feedbacks", false)),
-          ...(await fetchPaged("feedbacks", true)),
-        ];
-        for (const batch of chunk(feedbacks, BATCH_SIZE)) {
-          await ctx.runMutation(upsertFeedbacksRef, { shopId, feedbacks: batch });
-        }
-        await clearWbRateLimitGuardForEndpoint(ctx, shopId, "feedbacks");
-        await ctx.runMutation(logSyncRef, {
-          shopId, endpoint: "feedbacks", status: "ok" as const, count: feedbacks.length,
-        });
-      } catch (e: any) {
-        await recordWbRateLimitGuardFromError(ctx, shopId, "feedbacks", e);
-        await ctx.runMutation(logSyncRef, {
-          shopId, endpoint: "feedbacks", status: "error" as const, error: e.message,
-        });
-      }
-    }
+    const latestCommunicationAttempt = baseToken
+      ? await getLatestWbSyncAttempt(ctx, shopId, communicationEndpoints)
+      : null;
+    const order: Array<"feedbacks" | "questions"> =
+      baseToken && latestCommunicationAttempt?.endpoint === "feedbacks"
+        ? ["questions", "feedbacks"]
+        : ["feedbacks", "questions"];
+    const twoHourSlot = Math.floor(Date.now() / (2 * 60 * 60_000));
 
-    // Questions
-    if (!(await skipIfWbRateLimited(ctx, shopId, "questions"))) {
+    for (const kind of order) {
+      if (await skipIfWbRateLimited(ctx, shopId, kind)) continue;
+      if (
+        await skipIfWbSyncTooSoon(ctx, shopId, apiKey, kind, {
+          cadenceEndpoints: communicationEndpoints,
+        })
+      ) {
+        continue;
+      }
+
+      const answeredStates = baseToken
+        ? [twoHourSlot % 2 === 1]
+        : [false, true];
       try {
-        const questions = [
-          ...(await fetchPaged("questions", false)),
-          ...(await fetchPaged("questions", true)),
-        ];
-        for (const batch of chunk(questions, BATCH_SIZE)) {
-          await ctx.runMutation(upsertQuestionsRef, { shopId, questions: batch });
+        const items: any[] = [];
+        for (const isAnswered of answeredStates) {
+          items.push(
+            ...(await fetchPaged(
+              kind,
+              isAnswered,
+              baseToken ? 1 : Number.POSITIVE_INFINITY,
+            )),
+          );
         }
-        await clearWbRateLimitGuardForEndpoint(ctx, shopId, "questions");
+        for (const batch of chunk(items, BATCH_SIZE)) {
+          if (kind === "feedbacks") {
+            await ctx.runMutation(upsertFeedbacksRef, { shopId, feedbacks: batch });
+          } else {
+            await ctx.runMutation(upsertQuestionsRef, { shopId, questions: batch });
+          }
+        }
+        await clearWbRateLimitGuardForEndpoint(ctx, shopId, kind);
         await ctx.runMutation(logSyncRef, {
-          shopId, endpoint: "questions", status: "ok" as const, count: questions.length,
+          shopId,
+          endpoint: kind,
+          status: "ok" as const,
+          count: items.length,
         });
       } catch (e: any) {
-        await recordWbRateLimitGuardFromError(ctx, shopId, "questions", e);
-        await ctx.runMutation(logSyncRef, {
-          shopId, endpoint: "questions", status: "error" as const, error: e.message,
-        });
+        await logSyncFailure(ctx, shopId, kind, e);
       }
     }
   },

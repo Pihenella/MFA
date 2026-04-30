@@ -3,10 +3,15 @@ import type { Id } from "../_generated/dataModel";
 import { v } from "convex/values";
 import {
   clearWbRateLimitGuardRef,
+  getLatestSyncLogForEndpointsRef,
   getWbRateLimitGuardRef,
   logSyncRef,
   recordWbRateLimitGuardRef,
 } from "../lib/syncRefs";
+import {
+  getWbBaseTokenSyncIntervalMs,
+  isWbBaseToken as tokenIsWbBaseToken,
+} from "../../src/lib/wb-token";
 
 export function chunk<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -27,6 +32,8 @@ type SyncActionContext = {
   runQuery: <Args, Result>(ref: any, args: Args) => Promise<Result>;
   runMutation: <Args, Result = unknown>(ref: any, args: Args) => Promise<Result>;
 };
+
+type LatestSyncLog = { endpoint: string; syncedAt: number } | null;
 
 function parsePositiveNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -209,6 +216,58 @@ export async function skipIfWbRateLimited(
   return true;
 }
 
+function formatRemainingSeconds(until: number): number {
+  return Math.max(1, Math.ceil((until - Date.now()) / 1000));
+}
+
+export function isWbBaseToken(apiKey: string): boolean {
+  return tokenIsWbBaseToken(apiKey);
+}
+
+export async function getLatestWbSyncAttempt(
+  ctx: SyncActionContext,
+  shopId: Id<"shops">,
+  endpoints: string[],
+): Promise<LatestSyncLog> {
+  return await ctx.runQuery<
+    { shopId: Id<"shops">; endpoints: string[] },
+    LatestSyncLog
+  >(getLatestSyncLogForEndpointsRef, { shopId, endpoints });
+}
+
+export async function skipIfWbSyncTooSoon(
+  ctx: SyncActionContext,
+  shopId: Id<"shops">,
+  apiKey: string,
+  endpoint: string,
+  {
+    logEndpoint = endpoint,
+    cadenceEndpoints = [endpoint],
+  }: {
+    logEndpoint?: string;
+    cadenceEndpoints?: string[];
+  } = {},
+): Promise<boolean> {
+  if (!isWbBaseToken(apiKey)) return false;
+
+  const intervalMs = getWbBaseTokenSyncIntervalMs(endpoint);
+  if (intervalMs === undefined) return false;
+
+  const latest = await getLatestWbSyncAttempt(ctx, shopId, cadenceEndpoints);
+  if (!latest) return false;
+
+  const nextAllowedAt = latest.syncedAt + intervalMs;
+  if (Date.now() >= nextAllowedAt) return false;
+
+  await ctx.runMutation(logSyncRef, {
+    shopId,
+    endpoint: logEndpoint,
+    status: "skipped" as const,
+    error: `WB Base token cadence: next request after ${new Date(nextAllowedAt).toISOString()} (${formatRemainingSeconds(nextAllowedAt)}s left)`,
+  });
+  return true;
+}
+
 export async function recordWbRateLimitGuardFromError(
   ctx: SyncActionContext,
   shopId: Id<"shops">,
@@ -225,6 +284,38 @@ export async function recordWbRateLimitGuardFromError(
     error: error.message,
   });
   return true;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function rateLimitPauseMessage(error: WbRateLimitError): string {
+  return `WB rate-limit guard: paused until ${new Date(error.blockedUntil).toISOString()} (${error.retryAfterSeconds}s retry)`;
+}
+
+export async function logSyncFailure(
+  ctx: SyncActionContext,
+  shopId: Id<"shops">,
+  endpoint: string,
+  error: unknown,
+  logEndpoint = endpoint,
+): Promise<void> {
+  const isRateLimited = await recordWbRateLimitGuardFromError(
+    ctx,
+    shopId,
+    endpoint,
+    error,
+  );
+  await ctx.runMutation(logSyncRef, {
+    shopId,
+    endpoint: logEndpoint,
+    status: isRateLimited ? "skipped" as const : "error" as const,
+    error:
+      isRateLimited && isWbRateLimitError(error)
+        ? rateLimitPauseMessage(error)
+        : errorMessage(error),
+  });
 }
 
 export async function clearWbRateLimitGuardForEndpoint(
@@ -252,6 +343,37 @@ export const logSync = internalMutation({
       count: args.count,
       syncedAt: Date.now(),
     });
+  },
+});
+
+export const getLatestSyncLogForEndpoints = internalQuery({
+  args: {
+    shopId: v.id("shops"),
+    endpoints: v.array(v.string()),
+  },
+  handler: async (ctx, { shopId, endpoints }) => {
+    let latest: { endpoint: string; syncedAt: number } | null = null;
+    for (const endpoint of endpoints) {
+      const logs = await ctx.db
+        .query("syncLog")
+        .withIndex("by_shop_endpoint_synced_at", (q) =>
+          q.eq("shopId", shopId).eq("endpoint", endpoint)
+        )
+        .order("desc")
+        .take(50);
+      const requestLog = logs.find((log) =>
+        log.status !== "skipped" ||
+        (log.error ?? "").startsWith("WB rate-limit guard: paused")
+      );
+      if (!requestLog) continue;
+      if (!latest || requestLog.syncedAt > latest.syncedAt) {
+        latest = {
+          endpoint: requestLog.endpoint,
+          syncedAt: requestLog.syncedAt,
+        };
+      }
+    }
+    return latest;
   },
 });
 

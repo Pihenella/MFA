@@ -6,8 +6,10 @@ import {
   fetchWithRetry,
   assertOk,
   clearWbRateLimitGuardForEndpoint,
-  recordWbRateLimitGuardFromError,
+  isWbBaseToken,
+  logSyncFailure,
   skipIfWbRateLimited,
+  skipIfWbSyncTooSoon,
 } from "./helpers";
 import { upsertCampaignsRef, logSyncRef } from "../lib/syncRefs";
 
@@ -44,6 +46,7 @@ export const syncPromotion = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     if (await skipIfWbRateLimited(ctx, shopId, "campaigns")) return;
+    if (await skipIfWbSyncTooSoon(ctx, shopId, apiKey, "campaigns")) return;
 
     const headers: Record<string, string> = { Authorization: apiKey };
 
@@ -65,10 +68,11 @@ export const syncPromotion = internalAction({
         // Пауза после list запроса перед fullstats
         await new Promise((r) => setTimeout(r, 21000));
         const idBatches = chunk(campaignIds, 50);
-        for (let bi = 0; bi < idBatches.length; bi++) {
+        const statsBatches = isWbBaseToken(apiKey) ? idBatches.slice(0, 1) : idBatches;
+        for (let bi = 0; bi < statsBatches.length; bi++) {
           // fullstats: 3 req/min, 20s interval
           if (bi > 0) await new Promise((r) => setTimeout(r, 21000));
-          const idsParam = idBatches[bi].join(",");
+          const idsParam = statsBatches[bi].join(",");
           const statsRes = await fetchWithRetry(
             `https://advert-api.wildberries.ru/adv/v3/fullstats?ids=${idsParam}&beginDate=${thirtyDaysAgo}&endDate=${today}`,
             { headers },
@@ -125,10 +129,7 @@ export const syncPromotion = internalAction({
         });
       }
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "campaigns", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "campaigns", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "campaigns", e);
     }
   },
 });

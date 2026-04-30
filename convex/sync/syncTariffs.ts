@@ -4,7 +4,7 @@ import {
   fetchWithRetry,
   assertOk,
   clearWbRateLimitGuardForEndpoint,
-  recordWbRateLimitGuardFromError,
+  logSyncFailure,
   skipIfWbRateLimited,
 } from "./helpers";
 import { upsertTariffsRef, logSyncRef } from "../lib/syncRefs";
@@ -57,10 +57,7 @@ export const syncTariffs = internalAction({
         shopId, endpoint: "tariffs", status: "ok" as const, count: tariffs.length ?? 0,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "tariffs", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "tariffs", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "tariffs", e);
     }
   },
 });

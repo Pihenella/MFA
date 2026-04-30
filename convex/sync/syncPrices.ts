@@ -6,7 +6,7 @@ import {
   fetchWithRetry,
   assertOk,
   clearWbRateLimitGuardForEndpoint,
-  recordWbRateLimitGuardFromError,
+  logSyncFailure,
   skipIfWbRateLimited,
 } from "./helpers";
 import { upsertPricesRef, logSyncRef } from "../lib/syncRefs";
@@ -70,10 +70,7 @@ export const syncPrices = internalAction({
         shopId, endpoint: "prices", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "prices", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "prices", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "prices", e);
     }
   },
 });

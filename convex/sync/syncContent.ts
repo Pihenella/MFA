@@ -6,7 +6,7 @@ import {
   fetchWithRetry,
   assertOk,
   clearWbRateLimitGuardForEndpoint,
-  recordWbRateLimitGuardFromError,
+  logSyncFailure,
   skipIfWbRateLimited,
 } from "./helpers";
 import { upsertProductCardsRef, logSyncRef } from "../lib/syncRefs";
@@ -83,10 +83,7 @@ export const syncContent = internalAction({
         shopId, endpoint: "content", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "content", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "content", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "content", e);
     }
   },
 });

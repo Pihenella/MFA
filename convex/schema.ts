@@ -263,6 +263,7 @@ export default defineSchema({
     error: v.optional(v.string()),
     count: v.optional(v.number()),
   }).index("by_shop", ["shopId"])
+    .index("by_shop_endpoint_synced_at", ["shopId", "endpoint", "syncedAt"])
     .index("by_synced_at", ["syncedAt"]),
 
   wbRateLimitGuards: defineTable({

@@ -5,8 +5,10 @@ import {
   BATCH_SIZE,
   clearWbRateLimitGuardForEndpoint,
   isWbRateLimitError,
-  recordWbRateLimitGuardFromError,
+  isWbBaseToken,
+  logSyncFailure,
   skipIfWbRateLimited,
+  skipIfWbSyncTooSoon,
   throwIfWbRateLimited,
 } from "./helpers";
 import { upsertNmReportsRef, logSyncRef } from "../lib/syncRefs";
@@ -89,10 +91,12 @@ async function fetchAnalyticsForPeriod(
   headers: Record<string, string>,
   start: string,
   end: string,
+  maxPages = Number.POSITIVE_INFINITY,
 ): Promise<any[]> {
   const allProducts: any[] = [];
   const limit = 1000;
   let offset = 0;
+  let pageCount = 0;
   while (true) {
     const body = {
       nmIds: [],
@@ -107,6 +111,8 @@ async function fetchAnalyticsForPeriod(
     const products = data.data?.products ?? data.data?.cards ?? [];
     if (!Array.isArray(products) || products.length === 0) break;
     allProducts.push(...products);
+    pageCount++;
+    if (pageCount >= maxPages) break;
     const isLastPage = products.length < limit || data.data?.isNextPage === false;
     if (isLastPage) break;
     offset += products.length;
@@ -147,6 +153,7 @@ export const syncAnalytics = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     if (await skipIfWbRateLimited(ctx, shopId, "analytics")) return;
+    if (await skipIfWbSyncTooSoon(ctx, shopId, apiKey, "analytics")) return;
 
     const headers: Record<string, string> = {
       Authorization: apiKey,
@@ -156,7 +163,12 @@ export const syncAnalytics = internalAction({
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
     try {
-      const products = await fetchAnalyticsForPeriod(headers, thirtyDaysAgo, today);
+      const products = await fetchAnalyticsForPeriod(
+        headers,
+        thirtyDaysAgo,
+        today,
+        isWbBaseToken(apiKey) ? 1 : Number.POSITIVE_INFINITY,
+      );
       const mapped = mapProducts(products, thirtyDaysAgo, today);
       const batches = chunk(mapped, BATCH_SIZE);
       for (const batch of batches) {
@@ -167,10 +179,7 @@ export const syncAnalytics = internalAction({
         shopId, endpoint: "analytics", status: "ok" as const, count: mapped.length,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "analytics", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "analytics", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "analytics", e);
     }
   },
 });
@@ -182,6 +191,14 @@ export const fetchAnalyticsForRange = internalAction({
     if (await skipIfWbRateLimited(ctx, shopId, "analytics", "analytics:range")) {
       return 0;
     }
+    if (
+      await skipIfWbSyncTooSoon(ctx, shopId, apiKey, "analytics", {
+        logEndpoint: "analytics:range",
+        cadenceEndpoints: ["analytics", "analytics:range"],
+      })
+    ) {
+      return 0;
+    }
 
     const headers: Record<string, string> = {
       Authorization: apiKey,
@@ -189,7 +206,12 @@ export const fetchAnalyticsForRange = internalAction({
     };
 
     try {
-      const products = await fetchAnalyticsForPeriod(headers, dateFrom, dateTo);
+      const products = await fetchAnalyticsForPeriod(
+        headers,
+        dateFrom,
+        dateTo,
+        isWbBaseToken(apiKey) ? 1 : Number.POSITIVE_INFINITY,
+      );
       const mapped = mapProducts(products, dateFrom, dateTo);
       const batches = chunk(mapped, BATCH_SIZE);
       for (const batch of batches) {
@@ -204,13 +226,7 @@ export const fetchAnalyticsForRange = internalAction({
       });
       return mapped.length;
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "analytics", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId,
-        endpoint: "analytics:range",
-        status: "error" as const,
-        error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "analytics", e, "analytics:range");
       throw e;
     }
   },

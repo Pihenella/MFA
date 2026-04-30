@@ -90,6 +90,14 @@ export const logSyncRef =
     }
   >;
 
+export const getLatestSyncLogForEndpointsRef =
+  "sync/helpers:getLatestSyncLogForEndpoints" as unknown as FunctionReference<
+    "query",
+    "internal",
+    { shopId: Id<"shops">; endpoints: string[] },
+    { endpoint: string; syncedAt: number } | null
+  >;
+
 // sync/helpers:rate-limit guard
 export const getWbRateLimitGuardRef =
   "sync/helpers:getWbRateLimitGuard" as unknown as FunctionReference<

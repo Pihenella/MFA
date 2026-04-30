@@ -6,8 +6,10 @@ import {
   fetchWithRetry,
   assertOk,
   clearWbRateLimitGuardForEndpoint,
-  recordWbRateLimitGuardFromError,
+  isWbBaseToken,
+  logSyncFailure,
   skipIfWbRateLimited,
+  skipIfWbSyncTooSoon,
 } from "./helpers";
 import {
   upsertOrdersRef,
@@ -194,10 +196,7 @@ export const syncOrders = internalAction({
         shopId, endpoint: "orders", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "orders", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "orders", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "orders", e);
     }
   },
 });
@@ -225,10 +224,7 @@ export const syncSales = internalAction({
         shopId, endpoint: "sales", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "sales", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "sales", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "sales", e);
     }
   },
 });
@@ -257,10 +253,7 @@ export const syncStocks = internalAction({
         shopId, endpoint: "stocks", status: "ok" as const, count: data.length ?? 0,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "stocks", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "stocks", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "stocks", e);
     }
   },
 });
@@ -269,6 +262,7 @@ export const syncFinancials = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
     if (await skipIfWbRateLimited(ctx, shopId, "financials")) return;
+    if (await skipIfWbSyncTooSoon(ctx, shopId, apiKey, "financials")) return;
 
     const headers: Record<string, string> = { Authorization: apiKey };
     const today = new Date().toISOString().slice(0, 10);
@@ -277,6 +271,7 @@ export const syncFinancials = internalAction({
       let rrdid = 0;
       let totalCount = 0;
       let pageNum = 0;
+      const maxPages = isWbBaseToken(apiKey) ? 1 : Number.POSITIVE_INFINITY;
       while (true) {
         // Statistics API: 1 req/min — пауза перед каждой страницей кроме первой
         if (pageNum > 0) await new Promise((r) => setTimeout(r, 61000));
@@ -294,6 +289,7 @@ export const syncFinancials = internalAction({
         for (const batch of batches) {
           await ctx.runMutation(upsertFinancialsRef, { shopId, rows: batch });
         }
+        if (pageNum >= maxPages) break;
         const nextRrdid = Number(data[data.length - 1].rrd_id) || rrdid;
         if (nextRrdid <= rrdid) break;
         rrdid = nextRrdid;
@@ -304,10 +300,7 @@ export const syncFinancials = internalAction({
         shopId, endpoint: "financials", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await recordWbRateLimitGuardFromError(ctx, shopId, "financials", e);
-      await ctx.runMutation(logSyncRef, {
-        shopId, endpoint: "financials", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "financials", e);
     }
   },
 });

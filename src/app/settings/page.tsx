@@ -16,6 +16,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { getWbTokenInfo } from "@/lib/wb-token";
 import {
   FinlyBadge,
   FinlyButton,
@@ -36,6 +37,7 @@ import {
   Bell,
   ChevronDown,
   ChevronUp,
+  Clock3,
   Info,
   Palette,
   Plus,
@@ -78,8 +80,42 @@ function formatDate(ms: number | undefined) {
   return `Синхронизирован: ${new Date(ms).toLocaleString("ru-RU")}`;
 }
 
+function isWbRateLimitLog(error: string | undefined) {
+  return /HTTP 429|too many requests|rate-limit/i.test(error ?? "");
+}
+
 function marketplaceLabel(marketplace: Shop["marketplace"]) {
   return marketplace === "wb" ? "Wildberries" : "Ozon";
+}
+
+function WbTokenDiagnostics({ shop }: { shop: Shop }) {
+  if (shop.marketplace !== "wb") return null;
+
+  const tokenInfo = getWbTokenInfo(shop.apiKey);
+  const expiresAt = tokenInfo.expiresAt
+    ? new Date(tokenInfo.expiresAt * 1000).toLocaleDateString("ru-RU")
+    : null;
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <FinlyBadge tone={tokenInfo.type === "base" ? "gold" : "success"}>
+          {tokenInfo.label}
+        </FinlyBadge>
+        {tokenInfo.readOnly && <FinlyBadge tone="muted">Read only</FinlyBadge>}
+        {expiresAt && <FinlyBadge tone="muted">до {expiresAt}</FinlyBadge>}
+      </div>
+      {tokenInfo.type === "base" && (
+        <div className="flex items-start gap-2 rounded-frame border border-gold-frame/30 bg-gold-frame/10 p-3 text-xs text-muted-foreground">
+          <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-gold-frame" />
+          <span>
+            Base-токен WB: тяжёлые категории синхронизируются реже. Analytics — не чаще раза в 30 минут,
+            продвижение — раз в час, отзывы/вопросы — с паузой 12 минут, финансовые отчёты — до двух раз в день.
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
@@ -110,16 +146,18 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
             );
           }
           const isOk = log.status === "ok";
-          const isSkipped = log.status === "skipped";
+          const isPaused =
+            log.status === "skipped" ||
+            (log.status === "error" && isWbRateLimitLog(log.error));
           const label = isOk
             ? `OK${log.count !== undefined ? ` (${log.count})` : ""}`
-            : isSkipped
+            : isPaused
               ? "Пауза WB"
               : "Ошибка";
           return (
             <FinlyBadge
               key={ep}
-              tone={isOk ? "success" : isSkipped ? "gold" : "danger"}
+              tone={isOk ? "success" : isPaused ? "gold" : "danger"}
             >
               {ep}: {label}
             </FinlyBadge>
@@ -142,22 +180,27 @@ function SyncStatus({ shopId }: { shopId: Id<"shops"> }) {
               {logs
                 .filter((l) => l.status !== "ok")
                 .slice(0, 10)
-                .map((l) => (
-                  <div
-                    key={l._id}
-                    className={`rounded-frame border p-3 ${
-                      l.status === "skipped"
-                        ? "border-gold-frame/30 bg-gold-frame/10"
-                        : "border-rune-danger/30 bg-rune-danger/10"
-                    }`}
-                  >
-                    <span className="font-medium text-foreground">{l.endpoint}</span>{" "}
-                    <span>{new Date(l.syncedAt).toLocaleString("ru-RU")}</span>
-                    <div className={`mt-1 ${l.status === "skipped" ? "text-gold-frame" : "text-rune-danger"}`}>
-                      {l.error}
+                .map((l) => {
+                  const isPaused =
+                    l.status === "skipped" ||
+                    (l.status === "error" && isWbRateLimitLog(l.error));
+                  return (
+                    <div
+                      key={l._id}
+                      className={`rounded-frame border p-3 ${
+                        isPaused
+                          ? "border-gold-frame/30 bg-gold-frame/10"
+                          : "border-rune-danger/30 bg-rune-danger/10"
+                      }`}
+                    >
+                      <span className="font-medium text-foreground">{l.endpoint}</span>{" "}
+                      <span>{new Date(l.syncedAt).toLocaleString("ru-RU")}</span>
+                      <div className={`mt-1 ${isPaused ? "text-gold-frame" : "text-rune-danger"}`}>
+                        {l.error}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           )}
         </div>
@@ -656,6 +699,7 @@ function SettingsPageInner() {
                       <p className="mt-1 text-sm text-muted-foreground">
                         {formatDate(shop.lastSyncAt)}
                       </p>
+                      <WbTokenDiagnostics shop={shop} />
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <FinlyButton
