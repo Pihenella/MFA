@@ -1,13 +1,21 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
+import { shopsListMineRef, getCampaignsRef, costsListByShopRef, getFinancialReportsRef } from "@/lib/convex-refs";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download } from "lucide-react";
 import { format, subDays } from "date-fns";
+import {
+  FinlyButton,
+  FinlyCard,
+  FinlyDataTable,
+  FinlyEmptyState,
+  FinlyMetricTile,
+  type FinlyDataTableColumn,
+} from "@/components/finly";
 import {
   groupByReportFull,
   groupByPeriodFull,
@@ -77,8 +85,8 @@ const REPORT_COLUMNS: {
   { key: "otherCharges", label: "Прочие начисления, ₽", type: "money" },
   { key: "otherChargesPct", label: "Прочие начисления, %", type: "pct" },
   { key: "mpExpenses", label: "Расходы МП, ₽", type: "money" },
-  { key: "profitBeforeTax", label: "Маржинальная прибыль, ₽", type: "money" },
-  { key: "profitBeforeTaxPct", label: "Маржинальная прибыль, %", type: "pct" },
+  { key: "profitBeforeTax", label: "Прибыль без налога, ₽", type: "money" },
+  { key: "profitBeforeTaxPct", label: "% прибыли без налога", type: "pct" },
   { key: "tax", label: "Налог, ₽", type: "money" },
   { key: "taxPct", label: "Налог, %", type: "pct" },
   { key: "payoutToAccount", label: "К выплате на р/с, ₽", type: "money" },
@@ -132,8 +140,8 @@ const DETAIL_COLUMNS: {
   { key: "otherCharges", label: "Прочие начисления, ₽", type: "money" },
   { key: "otherChargesPct", label: "Прочие начисления, %", type: "pct" },
   { key: "mpExpenses", label: "Расходы МП, ₽", type: "money" },
-  { key: "profitBeforeTax", label: "Маржинальная прибыль, ₽", type: "money" },
-  { key: "profitBeforeTaxPct", label: "Маржинальная прибыль, %", type: "pct" },
+  { key: "profitBeforeTax", label: "Прибыль без налога, ₽", type: "money" },
+  { key: "profitBeforeTaxPct", label: "% прибыли без налога", type: "pct" },
   { key: "tax", label: "Налог, ₽", type: "money" },
   { key: "taxPct", label: "Налог, %", type: "pct" },
 ];
@@ -154,125 +162,55 @@ function cellColor(value: unknown, type: string): string {
     return "";
   const n = Number(value);
   if (type === "pct") {
-    if (n > 0) return "text-green-600";
-    if (n < 0) return "text-red-600";
+    if (n > 0) return "text-rune-success";
+    if (n < 0) return "text-rune-danger";
   }
   if (type === "money") {
-    if (n < 0) return "text-red-600";
-    if (n > 0) return "text-green-700";
+    if (n < 0) return "text-rune-danger";
+    if (n > 0) return "text-rune-success";
   }
   return "";
 }
 
-// ---- Reusable wide table ----
+function fmtRub(n: number | null) {
+  return n === null ? "—" : `${fmt(n)} ₽`;
+}
 
-function WideTable<T extends Record<string, unknown>>({
-  columns,
-  data,
-  rowKey,
-  stickyCount,
-}: {
-  columns: { key: keyof T; label: string; type: "text" | "money" | "pct" | "int" }[];
-  data: T[];
-  rowKey: (row: T, i: number) => string | number;
-  stickyCount: number;
-}) {
-  // Измеряем реальные ширины sticky-колонок и считаем накопленный left-offset.
-  // Раньше offsets были захардкожены [0, 150, 310] — sticky-колонки накладывались
-  // друг на друга при прокрутке и накрывали следующие колонки (включая «Прибыль»).
-  const headerRefs = useRef<Array<HTMLTableCellElement | null>>([]);
-  const [stickyOffsets, setStickyOffsets] = useState<number[]>(() =>
-    Array(stickyCount).fill(0),
-  );
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      const offsets: number[] = [];
-      let acc = 0;
-      for (let i = 0; i < stickyCount; i++) {
-        offsets.push(acc);
-        const el = headerRefs.current[i];
-        if (el) acc += el.getBoundingClientRect().width;
-      }
-      setStickyOffsets((prev) =>
-        prev.length === offsets.length && prev.every((v, i) => v === offsets[i])
-          ? prev
-          : offsets,
+function toFinlyColumns<T>(
+  columns: {
+    key: keyof T;
+    label: string;
+    type: "text" | "money" | "pct" | "int";
+  }[],
+): FinlyDataTableColumn<T>[] {
+  return columns.map((col) => ({
+    key: col.key,
+    header: col.label,
+    align: col.type === "text" ? "left" : "right",
+    className: "whitespace-nowrap",
+    render: (row) => {
+      const value = row[col.key];
+      return (
+        <span className={cellColor(value, col.type)}>
+          {formatCell(value, col.type)}
+        </span>
       );
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    headerRefs.current.slice(0, stickyCount).forEach((el) => el && ro.observe(el));
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [stickyCount, columns.length, data.length]);
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto relative">
-      <table className="text-sm border-collapse whitespace-nowrap">
-        <thead>
-          <tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-            {columns.map((col, i) => (
-              <th
-                key={String(col.key)}
-                ref={(el) => { if (i < stickyCount) headerRefs.current[i] = el; }}
-                className={`p-3 ${col.type === "text" ? "text-left" : "text-right"} ${
-                  i < stickyCount ? "sticky bg-gray-50 z-20" : ""
-                }`}
-                style={
-                  i < stickyCount
-                    ? { left: `${stickyOffsets[i] ?? 0}px` }
-                    : undefined
-                }
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, ri) => (
-            <tr key={rowKey(row, ri)} className="border-b hover:bg-gray-50">
-              {columns.map((col, i) => (
-                <td
-                  key={String(col.key)}
-                  className={`p-3 ${col.type === "text" ? "text-left" : "text-right"} ${cellColor(row[col.key], col.type)} ${
-                    i < stickyCount ? "sticky bg-white z-10" : ""
-                  }`}
-                  style={
-                    i < stickyCount
-                      ? { left: `${stickyOffsets[i] ?? 0}px` }
-                      : undefined
-                  }
-                >
-                  {formatCell(row[col.key], col.type)}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {data.length === 0 && (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="p-8 text-center text-gray-400"
-              >
-                Нет данных. Запустите синхронизацию.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+    },
+  }));
 }
 
 // ---- Main page ----
 
 export default function FinancialsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  return (
+    <AuthGate>
+      <FinancialsContent />
+    </AuthGate>
+  );
+}
+
+function FinancialsContent() {
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [shopId, setShopId] = useState<string>("");
   const [dateFrom, setDateFrom] = useState(() =>
     format(subDays(new Date(), 60), "yyyy-MM-dd"),
@@ -283,12 +221,13 @@ export default function FinancialsPage() {
   );
 
   const activeShopId = (shopId || shops[0]?._id) as Id<"shops"> | undefined;
-  const activeShopName =
-    shops.find((s) => s._id === activeShopId)?.name ?? "";
+  const activeShop = shops.find((s) => s._id === activeShopId);
+  const activeShopName = activeShop?.name ?? "";
+  const activeTaxRate = activeShop?.taxRatePercent ?? 6;
 
   const rows =
     useQuery(
-      api.financials.getReports,
+      getFinancialReportsRef,
       activeShopId
         ? { shopId: activeShopId, dateFrom, dateTo }
         : "skip",
@@ -296,13 +235,13 @@ export default function FinancialsPage() {
 
   const costs =
     useQuery(
-      api.costs.listByShop,
+      costsListByShopRef,
       activeShopId ? { shopId: activeShopId } : "skip",
     ) ?? [];
 
   const campaigns =
     useQuery(
-      api.dashboard.getCampaigns,
+      getCampaignsRef,
       activeShopId
         ? { shopId: activeShopId, dateFrom, dateTo }
         : "skip",
@@ -319,15 +258,28 @@ export default function FinancialsPage() {
     activeShopName,
     costMap,
     campaignsSpent,
+    activeTaxRate,
   );
   const detailRows = groupByPeriodFull(
     rows as any,
     granularity,
     costMap,
     campaignsSpent,
+    activeTaxRate,
   );
   const penalties = rows.filter(
     (r) => r.docTypeName === "Штраф" || r.penalty > 0,
+  );
+  const financialTotals = fullReports.reduce(
+    (acc, row) => {
+      acc.income += row.revenueSeller;
+      acc.expenses += Math.abs(
+        row.costTotal + row.mpExpenses + (row.tax ?? 0),
+      );
+      acc.profit += row.profit;
+      return acc;
+    },
+    { income: 0, expenses: 0, profit: 0 },
   );
 
   const applyPreset = (days: number) => {
@@ -371,28 +323,31 @@ export default function FinancialsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header: title + shop selector */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold">Финансовые отчеты</h1>
-          <select
-            className="border rounded-md px-3 py-2 text-sm"
-            value={shopId || shops[0]?._id || ""}
-            onChange={(e) => setShopId(e.target.value)}
-          >
-            {shops.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Финансовые отчеты
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            P&L по отчетам реализации, периодам и штрафам.
+          </p>
         </div>
+        <select
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          value={shopId || shops[0]?._id || ""}
+          onChange={(e) => setShopId(e.target.value)}
+        >
+          {shops.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Date controls */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <FinlyCard accent="teal" className="flex flex-wrap items-end gap-3 p-3">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">От:</label>
+          <label className="text-sm text-muted-foreground">От:</label>
           <Input
             type="date"
             value={dateFrom}
@@ -401,7 +356,7 @@ export default function FinancialsPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">До:</label>
+          <label className="text-sm text-muted-foreground">До:</label>
           <Input
             type="date"
             value={dateTo}
@@ -409,22 +364,43 @@ export default function FinancialsPage() {
             className="w-40"
           />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex gap-1 rounded-frame border border-border bg-background p-1">
           {PERIOD_PRESETS.map((p) => (
-            <Button
+            <FinlyButton
               key={p.days}
-              variant="outline"
               size="sm"
+              variant="ghost"
               onClick={() => applyPreset(p.days)}
-              className="text-xs"
+              className="text-xs text-muted-foreground"
             >
               {p.label}
-            </Button>
+            </FinlyButton>
           ))}
         </div>
+      </FinlyCard>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <FinlyMetricTile
+          label="Приход"
+          value={financialTotals.income}
+          formatted={fmtRub(financialTotals.income)}
+          accent="teal"
+        />
+        <FinlyMetricTile
+          label="Расход"
+          value={financialTotals.expenses}
+          formatted={fmtRub(financialTotals.expenses)}
+          accent="flame"
+          invertDeltaColors
+        />
+        <FinlyMetricTile
+          label="Прибыль"
+          value={financialTotals.profit}
+          formatted={fmtRub(financialTotals.profit)}
+          accent={financialTotals.profit >= 0 ? "gold" : "flame"}
+        />
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="reports">
         <TabsList>
           <TabsTrigger value="reports">Финансовые отчеты</TabsTrigger>
@@ -432,29 +408,34 @@ export default function FinancialsPage() {
           <TabsTrigger value="fines">Штрафы</TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Reports */}
         <TabsContent value="reports" className="mt-4 space-y-3">
           <div className="flex justify-end">
-            <Button
-              variant="outline"
+            <FinlyButton
+              variant="secondary"
+              size="sm"
               onClick={handleExportReports}
               disabled={fullReports.length === 0}
             >
               <Download className="h-4 w-4 mr-2" /> Скачать XLSX
-            </Button>
+            </FinlyButton>
           </div>
-          <WideTable
-            columns={REPORT_COLUMNS}
-            data={fullReports}
-            rowKey={(r) => r.reportId}
-            stickyCount={3}
+          <FinlyDataTable
+            columns={toFinlyColumns<MpfactReportRow>(REPORT_COLUMNS)}
+            rows={fullReports}
+            rowKey={(r) => String(r.reportId)}
+            empty={
+              <FinlyEmptyState
+                pose="empty-data"
+                title="Нет финансовых данных"
+                body="Запустите синхронизацию или выберите другой период."
+              />
+            }
           />
         </TabsContent>
 
-        {/* Tab 2: Detail by day/week/month */}
         <TabsContent value="detail" className="mt-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
+            <div className="flex gap-1 rounded-frame border border-border bg-background p-1">
               {(
                 [
                   { value: "day", label: "По дням" },
@@ -462,68 +443,76 @@ export default function FinancialsPage() {
                   { value: "month", label: "По месяцам" },
                 ] as const
               ).map((g) => (
-                <Button
+                <FinlyButton
                   key={g.value}
-                  variant={granularity === g.value ? "default" : "outline"}
+                  variant={granularity === g.value ? "primary" : "ghost"}
                   size="sm"
                   onClick={() => setGranularity(g.value)}
+                  className={
+                    granularity !== g.value ? "text-muted-foreground" : ""
+                  }
                 >
                   {g.label}
-                </Button>
+                </FinlyButton>
               ))}
             </div>
-            <Button
-              variant="outline"
+            <FinlyButton
+              variant="secondary"
+              size="sm"
               onClick={handleExportDetail}
               disabled={detailRows.length === 0}
             >
               <Download className="h-4 w-4 mr-2" /> Скачать XLSX
-            </Button>
+            </FinlyButton>
           </div>
-          <WideTable
-            columns={DETAIL_COLUMNS}
-            data={detailRows}
-            rowKey={(r, i) => `${r.date}-${i}`}
-            stickyCount={3}
+          <FinlyDataTable
+            columns={toFinlyColumns<MpfactDetailRow>(DETAIL_COLUMNS)}
+            rows={detailRows}
+            rowKey={(r) => `${r.date}-${r.year}-${r.month}`}
+            empty={
+              <FinlyEmptyState
+                pose="empty-data"
+                title="Нет детализации"
+                body="Попробуйте выбрать другой период или магазин."
+              />
+            }
           />
         </TabsContent>
 
-        {/* Tab 3: Fines */}
         <TabsContent value="fines" className="mt-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-                  <th className="p-3 text-left">Дата</th>
-                  <th className="p-3 text-left">Артикул</th>
-                  <th className="p-3 text-right">Штраф ₽</th>
-                </tr>
-              </thead>
-              <tbody>
-                {penalties.map((p, i) => (
-                  <tr key={i} className="border-b hover:bg-gray-50">
-                    <td className="p-3 text-gray-600">
-                      {p.realizationreportDate}
-                    </td>
-                    <td className="p-3">{p.supplierArticle}</td>
-                    <td className="p-3 text-right text-red-600 font-semibold">
-                      {fmt(p.penalty)} ₽
-                    </td>
-                  </tr>
-                ))}
-                {penalties.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={3}
-                      className="p-8 text-center text-gray-400"
-                    >
-                      Штрафов нет
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <FinlyDataTable
+            rows={penalties}
+            rowKey={(row) => row._id}
+            columns={[
+              {
+                key: "realizationreportDate",
+                header: "Дата",
+                render: (row) => (
+                  <span className="text-muted-foreground">
+                    {row.realizationreportDate}
+                  </span>
+                ),
+              },
+              { key: "supplierArticle", header: "Артикул" },
+              {
+                key: "penalty",
+                header: "Штраф ₽",
+                align: "right",
+                render: (row) => (
+                  <span className="font-semibold text-rune-danger">
+                    {fmtRub(row.penalty)}
+                  </span>
+                ),
+              },
+            ]}
+            empty={
+              <FinlyEmptyState
+                pose="empty-data"
+                title="Штрафов нет"
+                body="За выбранный период штрафы не найдены."
+              />
+            }
+          />
         </TabsContent>
       </Tabs>
     </div>

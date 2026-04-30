@@ -1,6 +1,36 @@
 import { internalMutation, internalAction } from "./_generated/server";
+import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import {
+  syncPromotionRef,
+  syncContentRef,
+  syncAnalyticsRef,
+  syncFeedbacksRef,
+  syncPricesRef,
+  syncReturnsRef,
+  syncTariffsRef,
+  shopsUpdateLastSyncRef,
+  syncOrdersRef,
+  syncSalesRef,
+  syncStocksRef,
+  syncFinancialsRef,
+} from "./lib/syncRefs";
+
+// Pre-resolved refs обходят TS2589 (deep `internal` type instantiation).
+const backfillPriceWithDiscBatchRef =
+  "sync:backfillPriceWithDiscBatch" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    Record<string, never>,
+    number
+  >;
+const deleteEmptyOrderIdBatchRef =
+  "sync:deleteEmptyOrderIdBatch" as unknown as FunctionReference<
+    "mutation",
+    "internal",
+    Record<string, never>,
+    number
+  >;
 
 const DEFAULT_CATEGORIES = ["statistics", "promotion", "analytics"];
 
@@ -21,34 +51,40 @@ export const syncShop = internalAction({
       const category = categories[i];
       switch (category) {
         case "statistics":
-          await ctx.runAction(internal.sync.syncStatistics.syncStatistics, { shopId, apiKey });
+          await ctx.runAction(syncOrdersRef, { shopId, apiKey });
+          await new Promise((r) => setTimeout(r, 65_000));
+          await ctx.runAction(syncSalesRef, { shopId, apiKey });
+          await new Promise((r) => setTimeout(r, 65_000));
+          await ctx.runAction(syncStocksRef, { shopId, apiKey });
+          await new Promise((r) => setTimeout(r, 65_000));
+          await ctx.runAction(syncFinancialsRef, { shopId, apiKey });
           break;
         case "promotion":
-          await ctx.runAction(internal.sync.syncPromotion.syncPromotion, { shopId, apiKey });
+          await ctx.runAction(syncPromotionRef, { shopId, apiKey });
           break;
         case "content":
-          await ctx.runAction(internal.sync.syncContent.syncContent, { shopId, apiKey });
+          await ctx.runAction(syncContentRef, { shopId, apiKey });
           break;
         case "analytics":
-          await ctx.runAction(internal.sync.syncAnalytics.syncAnalytics, { shopId, apiKey });
+          await ctx.runAction(syncAnalyticsRef, { shopId, apiKey });
           break;
         case "feedbacks":
-          await ctx.runAction(internal.sync.syncFeedbacks.syncFeedbacks, { shopId, apiKey });
+          await ctx.runAction(syncFeedbacksRef, { shopId, apiKey });
           break;
         case "prices":
-          await ctx.runAction(internal.sync.syncPrices.syncPrices, { shopId, apiKey });
+          await ctx.runAction(syncPricesRef, { shopId, apiKey });
           break;
         case "returns":
-          await ctx.runAction(internal.sync.syncReturns.syncReturns, { shopId, apiKey });
+          await ctx.runAction(syncReturnsRef, { shopId, apiKey });
           break;
         case "tariffs":
-          await ctx.runAction(internal.sync.syncTariffs.syncTariffs, { shopId, apiKey });
+          await ctx.runAction(syncTariffsRef, { shopId, apiKey });
           break;
       }
     }
 
     // Update lastSyncAt
-    await ctx.runMutation(internal.shops.updateLastSync, { id: shopId });
+    await ctx.runMutation(shopsUpdateLastSyncRef, { id: shopId });
   },
 });
 
@@ -74,7 +110,7 @@ export const backfillPriceWithDisc = internalAction({
     let total = 0;
     for (let i = 0; i < 100; i++) {
       const patched: number = await ctx.runMutation(
-        internal.sync.backfillPriceWithDiscBatch
+        backfillPriceWithDiscBatchRef
       );
       total += patched;
       if (patched === 0) break;
@@ -103,7 +139,7 @@ export const cleanupDuplicateOrders = internalAction({
     let total = 0;
     for (let i = 0; i < limit; i++) {
       const deleted: number = await ctx.runMutation(
-        internal.sync.deleteEmptyOrderIdBatch
+        deleteEmptyOrderIdBatchRef
       );
       total += deleted;
       if (deleted === 0) break;

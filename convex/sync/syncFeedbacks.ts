@@ -1,7 +1,18 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  getLatestWbSyncAttempt,
+  isWbBaseToken,
+  logSyncFailure,
+  skipIfWbRateLimited,
+  skipIfWbSyncTooSoon,
+} from "./helpers";
+import { upsertFeedbacksRef, upsertQuestionsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertFeedbacks = internalMutation({
   args: { shopId: v.id("shops"), feedbacks: v.array(v.any()) },
@@ -10,7 +21,9 @@ export const upsertFeedbacks = internalMutation({
       const feedbackId = String(f.id ?? f.feedbackId ?? "");
       const existing = await ctx.db
         .query("feedbacks")
-        .withIndex("by_feedback_id", (q) => q.eq("feedbackId", feedbackId))
+        .withIndex("by_shop_feedback", (q) =>
+          q.eq("shopId", shopId).eq("feedbackId", feedbackId)
+        )
         .first();
       const row = {
         shopId,
@@ -38,7 +51,9 @@ export const upsertQuestions = internalMutation({
       const questionId = String(q.id ?? q.questionId ?? "");
       const existing = await ctx.db
         .query("questions")
-        .withIndex("by_question_id", (qb) => qb.eq("questionId", questionId))
+        .withIndex("by_shop_question", (qb) =>
+          qb.eq("shopId", shopId).eq("questionId", questionId)
+        )
         .first();
       const row = {
         shopId,
@@ -63,93 +78,85 @@ export const syncFeedbacks = internalAction({
   handler: async (ctx, { shopId, apiKey }) => {
     const headers: Record<string, string> = { Authorization: apiKey };
     const thirtyDaysAgo = Math.floor((Date.now() - 30 * 86400000) / 1000);
+    const baseToken = isWbBaseToken(apiKey);
+    const communicationEndpoints = ["feedbacks", "questions"];
 
-    // Feedbacks
-    try {
+    const fetchPaged = async (
+      kind: "feedbacks" | "questions",
+      isAnswered: boolean,
+      maxPages = Number.POSITIVE_INFINITY,
+    ) => {
       let skip = 0;
-      let totalCount = 0;
+      let pageCount = 0;
+      const total: any[] = [];
       while (true) {
         const res = await fetchWithRetry(
-          `https://feedbacks-api.wildberries.ru/api/v1/feedbacks?isAnswered=false&take=5000&skip=${skip}&dateFrom=${thirtyDaysAgo}`,
+          `https://feedbacks-api.wildberries.ru/api/v1/${kind}?isAnswered=${isAnswered}&take=5000&skip=${skip}&dateFrom=${thirtyDaysAgo}`,
           { headers },
         );
         await assertOk(res);
         const data = await res.json();
-        const feedbacks = data.data?.feedbacks ?? [];
-        if (!Array.isArray(feedbacks) || feedbacks.length === 0) break;
-        totalCount += feedbacks.length;
-        const batches = chunk(feedbacks, BATCH_SIZE);
-        for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncFeedbacks.upsertFeedbacks, { shopId, feedbacks: batch });
-        }
-        if (feedbacks.length < 5000) break;
-        skip += feedbacks.length;
+        const items = data.data?.[kind] ?? [];
+        if (!Array.isArray(items) || items.length === 0) break;
+        total.push(...items);
+        pageCount++;
+        if (pageCount >= maxPages) break;
+        if (items.length < 5000) break;
+        skip += items.length;
       }
-      // Also fetch answered
-      const answeredRes = await fetchWithRetry(
-        `https://feedbacks-api.wildberries.ru/api/v1/feedbacks?isAnswered=true&take=5000&skip=0&dateFrom=${thirtyDaysAgo}`,
-        { headers },
-      );
-      if (answeredRes.ok) {
-        const answeredData = await answeredRes.json();
-        const answered = answeredData.data?.feedbacks ?? [];
-        if (Array.isArray(answered) && answered.length > 0) {
-          totalCount += answered.length;
-          const batches = chunk(answered, BATCH_SIZE);
-          for (const batch of batches) {
-            await ctx.runMutation(internal.sync.syncFeedbacks.upsertFeedbacks, { shopId, feedbacks: batch });
-          }
-        }
-      }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "feedbacks", status: "ok" as const, count: totalCount,
-      });
-    } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "feedbacks", status: "error" as const, error: e.message,
-      });
-    }
+      return total;
+    };
 
-    // Questions
-    try {
-      let totalCount = 0;
-      const res = await fetchWithRetry(
-        `https://feedbacks-api.wildberries.ru/api/v1/questions?isAnswered=false&take=5000&skip=0&dateFrom=${thirtyDaysAgo}`,
-        { headers },
-      );
-      await assertOk(res);
-      const data = await res.json();
-      const questions = data.data?.questions ?? [];
-      if (Array.isArray(questions) && questions.length > 0) {
-        totalCount += questions.length;
-        const batches = chunk(questions, BATCH_SIZE);
-        for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncFeedbacks.upsertQuestions, { shopId, questions: batch });
-        }
+    const latestCommunicationAttempt = baseToken
+      ? await getLatestWbSyncAttempt(ctx, shopId, communicationEndpoints)
+      : null;
+    const order: Array<"feedbacks" | "questions"> =
+      baseToken && latestCommunicationAttempt?.endpoint === "feedbacks"
+        ? ["questions", "feedbacks"]
+        : ["feedbacks", "questions"];
+    const twoHourSlot = Math.floor(Date.now() / (2 * 60 * 60_000));
+
+    for (const kind of order) {
+      if (await skipIfWbRateLimited(ctx, shopId, kind)) continue;
+      if (
+        await skipIfWbSyncTooSoon(ctx, shopId, apiKey, kind, {
+          cadenceEndpoints: communicationEndpoints,
+        })
+      ) {
+        continue;
       }
-      // Answered questions
-      const answeredRes = await fetchWithRetry(
-        `https://feedbacks-api.wildberries.ru/api/v1/questions?isAnswered=true&take=5000&skip=0&dateFrom=${thirtyDaysAgo}`,
-        { headers },
-      );
-      if (answeredRes.ok) {
-        const answeredData = await answeredRes.json();
-        const answered = answeredData.data?.questions ?? [];
-        if (Array.isArray(answered) && answered.length > 0) {
-          totalCount += answered.length;
-          const batches = chunk(answered, BATCH_SIZE);
-          for (const batch of batches) {
-            await ctx.runMutation(internal.sync.syncFeedbacks.upsertQuestions, { shopId, questions: batch });
+
+      const answeredStates = baseToken
+        ? [twoHourSlot % 2 === 1]
+        : [false, true];
+      try {
+        const items: any[] = [];
+        for (const isAnswered of answeredStates) {
+          items.push(
+            ...(await fetchPaged(
+              kind,
+              isAnswered,
+              baseToken ? 1 : Number.POSITIVE_INFINITY,
+            )),
+          );
+        }
+        for (const batch of chunk(items, BATCH_SIZE)) {
+          if (kind === "feedbacks") {
+            await ctx.runMutation(upsertFeedbacksRef, { shopId, feedbacks: batch });
+          } else {
+            await ctx.runMutation(upsertQuestionsRef, { shopId, questions: batch });
           }
         }
+        await clearWbRateLimitGuardForEndpoint(ctx, shopId, kind);
+        await ctx.runMutation(logSyncRef, {
+          shopId,
+          endpoint: kind,
+          status: "ok" as const,
+          count: items.length,
+        });
+      } catch (e: any) {
+        await logSyncFailure(ctx, shopId, kind, e);
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "questions", status: "ok" as const, count: totalCount,
-      });
-    } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "questions", status: "error" as const, error: e.message,
-      });
     }
   },
 });

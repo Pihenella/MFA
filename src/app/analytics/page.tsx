@@ -1,12 +1,15 @@
 "use client";
+import { AuthGate } from "@/components/auth/AuthGate";
+import { shopsListMineRef, getSalesAnalyticsRef, fetchAnalyticsRef } from "@/lib/convex-refs";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { format, startOfMonth, subMonths, subDays } from "date-fns";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { ArrowUp, ArrowDown, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FinlyButton } from "@/components/finly/FinlyButton";
+import { FinlyCard } from "@/components/finly/FinlyCard";
+import { FinlyEmptyState } from "@/components/finly/FinlyEmptyState";
 import { cn } from "@/lib/utils";
 import { exportAnalyticsXlsx } from "@/lib/exportXlsx";
 
@@ -98,17 +101,17 @@ function fmtNum(val: number, unit?: "₽" | "%" | "шт"): string {
 
 // ROI/Profit badge colors like МП Факт
 function profitBadge(val: number): string {
-  if (val >= 20) return "bg-green-500 text-white";
-  if (val >= 10) return "bg-green-400 text-white";
-  if (val >= 0) return "bg-yellow-400 text-gray-900";
-  return "bg-red-500 text-white";
+  if (val >= 20) return "bg-rune-success text-primary-foreground";
+  if (val >= 10) return "bg-rune-success/80 text-primary-foreground";
+  if (val >= 0) return "bg-gold-frame text-scroll-ink";
+  return "bg-rune-danger text-primary-foreground";
 }
 
 function roiBadge(val: number): string {
-  if (val >= 50) return "bg-purple-500 text-white";
-  if (val >= 30) return "bg-blue-500 text-white";
-  if (val >= 0) return "bg-yellow-400 text-gray-900";
-  return "bg-red-500 text-white";
+  if (val >= 50) return "bg-murloc-teal text-primary-foreground";
+  if (val >= 30) return "bg-orange-flame text-primary-foreground";
+  if (val >= 0) return "bg-gold-frame text-scroll-ink";
+  return "bg-rune-danger text-primary-foreground";
 }
 
 // Whether this tab shows product info columns (image, nmId, article)
@@ -129,7 +132,15 @@ function firstColLabel(gb: GroupBy): string {
 }
 
 export default function AnalyticsPage() {
-  const shops = useQuery(api.shops.list) ?? [];
+  return (
+    <AuthGate>
+      <AnalyticsContent />
+    </AuthGate>
+  );
+}
+
+function AnalyticsContent() {
+  const shops = useQuery(shopsListMineRef) ?? [];
   const [selectedShop, setSelectedShop] = useState<string>("");
   const shopId = (selectedShop || undefined) as Id<"shops"> | undefined;
 
@@ -140,7 +151,7 @@ export default function AnalyticsPage() {
   const [sortAsc, setSortAsc] = useState(false);
 
   // Запрашиваем аналитику воронки у WB для выбранного периода (как МП Факт)
-  const fetchAnalytics = useAction(api.actions.fetchAnalytics);
+  const fetchAnalytics = useAction(fetchAnalyticsRef);
   const fetchedRef = useRef("");
   useEffect(() => {
     const activeShops = shopId ? shops.filter((s) => s._id === shopId) : shops;
@@ -158,7 +169,7 @@ export default function AnalyticsPage() {
     })();
   }, [shopId, shops, period.from, period.to, fetchAnalytics]);
 
-  const data = useQuery(api.analytics.getSalesAnalytics, {
+  const data = useQuery(getSalesAnalyticsRef, {
     shopId, dateFrom: period.from, dateTo: period.to, groupBy,
   });
   const rows = data ?? [];
@@ -211,11 +222,17 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Аналитика продаж Wildberries</h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">
+            Аналитика продаж
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Разрезы по товарам, магазинам, периодам, брендам и предметам.
+          </p>
+        </div>
         <select
-          className="border rounded-md px-3 py-2 text-sm"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           value={selectedShop}
           onChange={(e) => setSelectedShop(e.target.value)}
         >
@@ -224,61 +241,65 @@ export default function AnalyticsPage() {
         </select>
       </div>
 
-      {/* Tabs — plain text like МП Факт */}
-      <div className="flex flex-wrap gap-0 border-b border-gray-200">
+      <FinlyCard accent="teal" className="flex flex-wrap gap-0 p-0">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             className={cn(
               "px-4 py-2.5 text-sm font-medium transition-colors relative",
               groupBy === tab.key
-                ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-orange-flame after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-orange-flame"
+                : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => { setGroupBy(tab.key); setSortKey("revenueSeller"); setSortAsc(false); }}
           >
             {tab.label}
           </button>
         ))}
-      </div>
+      </FinlyCard>
 
-      {/* Period + Download */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <PeriodSelector
           period={period}
           comparePeriod={comparePeriod}
           onChange={(p, cp) => { setPeriod(p); setComparePeriod(cp); }}
         />
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+        <FinlyButton
+          className="flex items-center gap-2 self-start lg:self-center"
           size="sm"
           onClick={() => exportAnalyticsXlsx(sorted, COLUMNS, tabLabel, totals, showProduct)}
         >
           <Download className="h-4 w-4" />
           Скачать xlsx
-        </Button>
+        </FinlyButton>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+      {data && sorted.length === 0 ? (
+        <FinlyEmptyState
+          pose="empty-data"
+          title="Нет данных за выбранный период"
+          body="Попробуйте выбрать другой период или магазин."
+        />
+      ) : (
+      <FinlyCard className="overflow-x-auto p-0">
         <table className="w-full text-[13px] border-collapse whitespace-nowrap">
           <thead>
             {/* Group header row */}
-            <tr className="border-b border-gray-200">
+            <tr className="border-b border-border">
               {showProduct ? (
                 <>
-                  <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[220px]" rowSpan={2}>
+                  <th className="sticky left-0 z-30 bg-muted px-3 py-2 text-left text-xs font-semibold text-muted-foreground border-r border-border min-w-[220px]" rowSpan={2}>
                     Товар
                   </th>
-                  <th className="sticky left-[220px] z-30 bg-gray-50 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[80px]" rowSpan={2}>
+                  <th className="sticky left-[220px] z-30 bg-muted px-2 py-2 text-left text-xs font-semibold text-muted-foreground border-r border-border min-w-[80px]" rowSpan={2}>
                     Арт.WB
                   </th>
-                  <th className="sticky left-[300px] z-30 bg-gray-50 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[100px]" rowSpan={2}>
+                  <th className="sticky left-[300px] z-30 bg-muted px-2 py-2 text-left text-xs font-semibold text-muted-foreground border-r border-border min-w-[100px]" rowSpan={2}>
                     Арт.пост.
                   </th>
                 </>
               ) : (
-                <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 min-w-[140px]" rowSpan={2}>
+                <th className="sticky left-0 z-30 bg-muted px-3 py-2 text-left text-xs font-semibold text-muted-foreground border-r border-border min-w-[140px]" rowSpan={2}>
                   {firstColLabel(groupBy)}
                 </th>
               )}
@@ -286,24 +307,24 @@ export default function AnalyticsPage() {
                 <th
                   key={i}
                   colSpan={gs.count}
-                  className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 border-x border-gray-100"
+                  className="px-2 py-2 text-center text-xs font-semibold text-foreground border-b border-border border-x border-border"
                 >
                   {gs.group}
                 </th>
               ))}
             </tr>
             {/* Column header row */}
-            <tr className="border-b border-gray-300 bg-gray-50">
+            <tr className="border-b border-border bg-muted">
               {COLUMNS.map((col) => (
                 <th
                   key={col.key + col.group}
-                  className="px-2 py-2 text-right text-xs font-medium text-gray-500 cursor-pointer hover:bg-gray-100 border-x border-gray-100"
+                  className="px-2 py-2 text-right text-xs font-medium text-muted-foreground cursor-pointer hover:bg-card border-x border-border"
                   onClick={() => toggleSort(col.key)}
                 >
                   <span className="inline-flex items-center gap-0.5 justify-end">
                     {col.label}
                     {sortKey === col.key && (
-                      sortAsc ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
+                      sortAsc ? <ArrowUp className="h-3 w-3 text-orange-flame" /> : <ArrowDown className="h-3 w-3 text-orange-flame" />
                     )}
                   </span>
                 </th>
@@ -312,43 +333,40 @@ export default function AnalyticsPage() {
           </thead>
           <tbody>
             {!data && (
-              <tr><td colSpan={COLUMNS.length + stickyCount} className="py-16 text-center text-gray-400">Загрузка данных...</td></tr>
-            )}
-            {data && sorted.length === 0 && (
-              <tr><td colSpan={COLUMNS.length + stickyCount} className="py-16 text-center text-gray-400">Нет данных за выбранный период</td></tr>
+              <tr><td colSpan={COLUMNS.length + stickyCount} className="py-16 text-center text-muted-foreground">Загрузка данных...</td></tr>
             )}
             {sorted.map((row, i) => (
-              <tr key={row.label + i} className="border-b border-gray-100 hover:bg-blue-50/30">
+              <tr key={row.label + i} className="border-b border-border hover:bg-muted/30">
                 {/* Sticky first columns */}
                 {showProduct ? (
                   <>
                     {/* Товар: image + name */}
-                    <td className="sticky left-0 z-10 bg-white px-2 py-1.5 border-r border-gray-100">
+                    <td className="sticky left-0 z-10 bg-card px-2 py-1.5 border-r border-border">
                       <div className="flex items-center gap-2 min-w-[200px]">
                         {row.imageUrl ? (
                           <img
                             src={row.imageUrl}
                             alt=""
-                            className="w-10 h-10 rounded object-cover flex-shrink-0 border border-gray-200"
+                            className="w-10 h-10 rounded object-cover flex-shrink-0 border border-border"
                             loading="lazy"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded bg-gray-100 flex-shrink-0" />
+                          <div className="w-10 h-10 rounded bg-muted flex-shrink-0" />
                         )}
-                        <span className="text-xs text-gray-800 truncate max-w-[160px]" title={row.productName || row.label}>
+                        <span className="text-xs text-foreground truncate max-w-[160px]" title={row.productName || row.label}>
                           {row.productName || row.label || `nmId: ${row.nmId}`}
                         </span>
                       </div>
                     </td>
-                    <td className="sticky left-[220px] z-10 bg-white px-2 py-1.5 text-xs text-gray-600 font-mono border-r border-gray-100">
+                    <td className="sticky left-[220px] z-10 bg-card px-2 py-1.5 text-xs text-muted-foreground font-mono border-r border-border">
                       {row.nmId || ""}
                     </td>
-                    <td className="sticky left-[300px] z-10 bg-white px-2 py-1.5 text-xs text-gray-600 border-r border-gray-100">
+                    <td className="sticky left-[300px] z-10 bg-card px-2 py-1.5 text-xs text-muted-foreground border-r border-border">
                       {row.supplierArticle || ""}
                     </td>
                   </>
                 ) : (
-                  <td className="sticky left-0 z-10 bg-white px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-100 truncate max-w-[200px]" title={row.label}>
+                  <td className="sticky left-0 z-10 bg-card px-3 py-2 text-xs font-medium text-foreground border-r border-border truncate max-w-[200px]" title={row.label}>
                     {row.label || "(пусто)"}
                   </td>
                 )}
@@ -371,8 +389,8 @@ export default function AnalyticsPage() {
 
                   const isProfit = col.key === "profit" || col.key === "grossProfit" || col.key === "profitPerUnit";
                   const textColor = isProfit
-                    ? val > 0 ? "text-green-700" : val < 0 ? "text-red-600" : ""
-                    : col.neg && val > 0 ? "text-red-600" : "";
+                    ? val > 0 ? "text-rune-success" : val < 0 ? "text-rune-danger" : ""
+                    : col.neg && val > 0 ? "text-rune-danger" : "";
 
                   return (
                     <td key={col.key + col.group} className={cn("px-2 py-1.5 text-right", textColor)}>
@@ -385,8 +403,8 @@ export default function AnalyticsPage() {
           </tbody>
           {sorted.length > 0 && (
             <tfoot>
-              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-                <td className={cn("sticky left-0 z-10 bg-gray-50 px-3 py-2.5 border-r border-gray-200 text-xs")} colSpan={stickyCount}>
+              <tr className="bg-muted font-semibold border-t-2 border-border">
+                <td className={cn("sticky left-0 z-10 bg-muted px-3 py-2.5 border-r border-border text-xs")} colSpan={stickyCount}>
                   Итого ({sorted.length})
                 </td>
                 {COLUMNS.map((col) => {
@@ -404,8 +422,8 @@ export default function AnalyticsPage() {
                   }
                   const isProfit = col.key === "profit" || col.key === "grossProfit" || col.key === "profitPerUnit";
                   const textColor = isProfit
-                    ? val > 0 ? "text-green-700" : val < 0 ? "text-red-600" : ""
-                    : col.neg && val > 0 ? "text-red-600" : "";
+                    ? val > 0 ? "text-rune-success" : val < 0 ? "text-rune-danger" : ""
+                    : col.neg && val > 0 ? "text-rune-danger" : "";
                   return (
                     <td key={col.key + col.group} className={cn("px-2 py-2.5 text-right", textColor)}>
                       {col.neg && val > 0 ? `-${fmtNum(val, col.unit)}` : fmtNum(val, col.unit)}
@@ -416,10 +434,11 @@ export default function AnalyticsPage() {
             </tfoot>
           )}
         </table>
-      </div>
+      </FinlyCard>
+      )}
 
       {sorted.length > 0 && (
-        <div className="text-xs text-gray-400 text-right">
+        <div className="text-xs text-muted-foreground text-right">
           Показано: {sorted.length} | Страница 1 из 1
         </div>
       )}

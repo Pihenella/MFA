@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { ensureShopAccess, listUserShopIds } from "./lib/helpers";
 
 const GROUP_BY = v.union(
   v.literal("article"),
@@ -53,6 +54,7 @@ type Acc = {
   nmIds: Set<number>;
   nmSales: Map<number, number>;
   nmReturns: Map<number, number>;
+  taxBaseByShop: Map<string, number>;
   sortKey: string;
   // For article/size tabs
   supplierArticle: string;
@@ -67,9 +69,15 @@ function newAcc(sortKey: string): Acc {
     forPaySales: 0, forPayReturns: 0, salesQty: 0, returnsQty: 0,
     logistics: 0, storage: 0, penalties: 0, acceptance: 0, deductions: 0, compensation: 0,
     ordersRub: 0, ordersCount: 0, cancelledRub: 0, cancelledCount: 0,
-    nmIds: new Set(), nmSales: new Map(), nmReturns: new Map(),
+    nmIds: new Set(), nmSales: new Map(), nmReturns: new Map(), taxBaseByShop: new Map(),
     sortKey, supplierArticle: "", productName: "", imageUrl: "", nmId: 0,
   };
+}
+
+function taxRateFraction(ratePercent: number | undefined): number {
+  const value = ratePercent ?? 6;
+  if (!Number.isFinite(value)) return 0.06;
+  return Math.max(0, Math.min(100, value)) / 100;
 }
 
 export const getSalesAnalytics = query({
@@ -80,9 +88,20 @@ export const getSalesAnalytics = query({
     groupBy: GROUP_BY,
   },
   handler: async (ctx, { shopId, dateFrom, dateTo, groupBy }) => {
-    const shops = await ctx.db.query("shops").collect();
-    const shopMap = new Map(shops.map((s) => [s._id as string, s.name]));
-    const active = shopId ? shops.filter((s) => s._id === shopId) : shops;
+    let userShopIds: Awaited<ReturnType<typeof listUserShopIds>>;
+    if (shopId) {
+      await ensureShopAccess(ctx, shopId);
+      userShopIds = [shopId];
+    } else {
+      userShopIds = await listUserShopIds(ctx);
+      if (userShopIds.length === 0) return [];
+    }
+    const allShops = await Promise.all(userShopIds.map((id) => ctx.db.get(id)));
+    const active = allShops.filter((s): s is NonNullable<typeof s> => s !== null);
+    const shopMap = new Map(active.map((s) => [s._id as string, s.name]));
+    const shopTaxRateMap = new Map(
+      active.map((s) => [s._id as string, taxRateFraction(s.taxRatePercent)])
+    );
 
     // Fetch data in parallel
     const [financials, orders, nmReports, allCosts, allCards] = await Promise.all([
@@ -219,6 +238,8 @@ export const getSalesAnalytics = query({
         g.forPaySales += f.ppvzForPay || 0;
         g.salesQty += 1;
         g.nmSales.set(f.nmId, (g.nmSales.get(f.nmId) ?? 0) + 1);
+        const shopKey = f.shopId as string;
+        g.taxBaseByShop.set(shopKey, (g.taxBaseByShop.get(shopKey) ?? 0) + (f.retailAmount ?? 0));
       }
       if (isReturn) {
         g.returnsSeller += Math.abs(f.retailPrice ?? f.retailAmount ?? 0);
@@ -226,6 +247,8 @@ export const getSalesAnalytics = query({
         g.forPayReturns += Math.abs(f.ppvzForPay || 0);
         g.returnsQty += 1;
         g.nmReturns.set(f.nmId, (g.nmReturns.get(f.nmId) ?? 0) + 1);
+        const shopKey = f.shopId as string;
+        g.taxBaseByShop.set(shopKey, (g.taxBaseByShop.get(shopKey) ?? 0) - Math.abs(f.retailAmount ?? 0));
       }
       g.logistics += f.deliveryRub ?? 0;
       g.storage += f.storageAmount || 0;
@@ -263,7 +286,10 @@ export const getSalesAnalytics = query({
       const commission = revS - forPay;
       const grossProfit = revS - cogs;
       const expenses = commission + g.logistics + g.storage + g.penalties + g.acceptance + g.deductions - g.compensation;
-      const tax = revW * 0.06; // УСН 6% от выручки со скидкой WB (как в МП Факт)
+      const tax = [...g.taxBaseByShop.entries()].reduce(
+        (sum, [sid, revenue]) => sum + revenue * (shopTaxRateMap.get(sid) ?? 0.06),
+        0,
+      );
       const profitBeforeTax = grossProfit - expenses;
       const profit = profitBeforeTax - tax;
       const pct = (v: number) => revS !== 0 ? r2((v / Math.abs(revS)) * 100) : 0;

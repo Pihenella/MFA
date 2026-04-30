@@ -1,12 +1,33 @@
 import { useQuery, useAction } from "convex/react";
 import { useEffect, useRef } from "react";
-import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+import { Doc, Id } from "../../convex/_generated/dataModel";
+import {
+  getOrdersRef,
+  getSalesRef,
+  getFinancialsRef,
+  getCostsRef,
+  getCampaignsRef,
+  getNmReportsRef,
+  fetchAnalyticsRef,
+} from "../lib/convex-refs";
 
 type Period = { from: string; to: string };
 
-export function useDashboardData(period: Period, comparePeriod: Period, shopId?: Id<"shops">) {
-  const fetchAnalytics = useAction(api.actions.fetchAnalytics);
+type DashboardSlice = {
+  orders: Doc<"orders">[];
+  sales: Doc<"sales">[];
+  financials: Doc<"financials">[];
+  costs: Doc<"costs">[];
+  campaigns: Doc<"campaigns">[];
+  nmReports: Doc<"nmReports">[];
+};
+
+export function useDashboardData(
+  period: Period,
+  comparePeriod: Period,
+  shopId?: Id<"shops">
+): { now: DashboardSlice; prev: DashboardSlice } {
+  const fetchAnalytics = useAction(fetchAnalyticsRef);
   const fetchedRef = useRef<string>("");
 
   // Загружаем аналитику для текущего и сравнительного периода при смене дат/магазина
@@ -30,64 +51,64 @@ export function useDashboardData(period: Period, comparePeriod: Period, shopId?:
     return () => { cancelled = true; };
   }, [shopId, period.from, period.to, comparePeriod.from, comparePeriod.to, fetchAnalytics]);
 
-  const ordersNow = useQuery(api.dashboard.getOrders, {
+  const ordersNow = useQuery(getOrdersRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
 
-  const ordersPrev = useQuery(api.dashboard.getOrders, {
+  const ordersPrev = useQuery(getOrdersRef, {
     shopId,
     dateFrom: comparePeriod.from,
     dateTo: comparePeriod.to,
   }) ?? [];
 
-  const salesNow = useQuery(api.dashboard.getSales, {
+  const salesNow = useQuery(getSalesRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
 
-  const salesPrev = useQuery(api.dashboard.getSales, {
+  const salesPrev = useQuery(getSalesRef, {
     shopId,
     dateFrom: comparePeriod.from,
     dateTo: comparePeriod.to,
   }) ?? [];
 
-  const financialsNow = useQuery(api.dashboard.getFinancials, {
+  const financialsNow = useQuery(getFinancialsRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
 
-  const financialsPrev = useQuery(api.dashboard.getFinancials, {
+  const financialsPrev = useQuery(getFinancialsRef, {
     shopId,
     dateFrom: comparePeriod.from,
     dateTo: comparePeriod.to,
   }) ?? [];
 
-  const costs = useQuery(api.dashboard.getCosts, { shopId }) ?? [];
+  const costs = useQuery(getCostsRef, { shopId }) ?? [];
 
-  const campaignsNow = useQuery(api.dashboard.getCampaigns, {
+  const campaignsNow = useQuery(getCampaignsRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
 
-  const campaignsPrev = useQuery(api.dashboard.getCampaigns, {
+  const campaignsPrev = useQuery(getCampaignsRef, {
     shopId,
     dateFrom: comparePeriod.from,
     dateTo: comparePeriod.to,
   }) ?? [];
 
   // NM Reports — фильтруем по дате (exact match на periodStart/periodEnd)
-  const nmReportsNow = useQuery(api.dashboard.getNmReports, {
+  const nmReportsNow = useQuery(getNmReportsRef, {
     shopId,
     dateFrom: period.from,
     dateTo: period.to,
   }) ?? [];
 
-  const nmReportsPrev = useQuery(api.dashboard.getNmReports, {
+  const nmReportsPrev = useQuery(getNmReportsRef, {
     shopId,
     dateFrom: comparePeriod.from,
     dateTo: comparePeriod.to,

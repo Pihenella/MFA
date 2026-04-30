@@ -1,7 +1,15 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  logSyncFailure,
+  skipIfWbRateLimited,
+} from "./helpers";
+import { upsertReturnsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertReturns = internalMutation({
   args: { shopId: v.id("shops"), returns: v.array(v.any()) },
@@ -10,7 +18,9 @@ export const upsertReturns = internalMutation({
       const returnId = String(r.id ?? r.rid ?? "");
       const existing = await ctx.db
         .query("returns")
-        .withIndex("by_return_id", (q) => q.eq("returnId", returnId))
+        .withIndex("by_shop_return", (q) =>
+          q.eq("shopId", shopId).eq("returnId", returnId)
+        )
         .first();
       const row = {
         shopId,
@@ -33,32 +43,35 @@ export const upsertReturns = internalMutation({
 export const syncReturns = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "returns")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
 
     try {
       let totalCount = 0;
-      // Fetch active claims
-      const res = await fetchWithRetry(
-        `https://returns-api.wildberries.ru/api/v1/claims?is_archive=false`,
-        { headers },
-      );
-      await assertOk(res);
-      const data = await res.json();
-      const returns = Array.isArray(data) ? data : data.claims ?? [];
-      if (Array.isArray(returns) && returns.length > 0) {
-        totalCount = returns.length;
-        const batches = chunk(returns, BATCH_SIZE);
-        for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncReturns.upsertReturns, { shopId, returns: batch });
+      for (const isArchive of [false, true]) {
+        const res = await fetchWithRetry(
+          `https://returns-api.wildberries.ru/api/v1/claims?is_archive=${isArchive}`,
+          { headers },
+        );
+        await assertOk(res);
+        const data = await res.json();
+        const returns = Array.isArray(data) ? data : data.claims ?? [];
+        if (Array.isArray(returns) && returns.length > 0) {
+          totalCount += returns.length;
+          const batches = chunk(returns, BATCH_SIZE);
+          for (const batch of batches) {
+            await ctx.runMutation(upsertReturnsRef, { shopId, returns: batch });
+          }
         }
+        await new Promise((r) => setTimeout(r, 20_000));
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "returns");
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "returns", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "returns", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "returns", e);
     }
   },
 });

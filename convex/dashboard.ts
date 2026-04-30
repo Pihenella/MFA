@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { ensureShopAccess, listUserShopIds } from "./lib/helpers";
 
 export const getOrders = query({
   args: {
@@ -9,6 +10,7 @@ export const getOrders = query({
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       return await ctx.db
         .query("orders")
         .withIndex("by_shop_date", (q) =>
@@ -16,13 +18,13 @@ export const getOrders = query({
         )
         .collect();
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("orders")
           .withIndex("by_shop_date", (q) =>
-            q.eq("shopId", s._id).gte("date", dateFrom).lte("date", dateTo)
+            q.eq("shopId", sid).gte("date", dateFrom).lte("date", dateTo)
           )
           .collect()
       )
@@ -39,6 +41,7 @@ export const getSales = query({
   },
   handler: async (ctx, { shopId, dateFrom, dateTo }) => {
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       return await ctx.db
         .query("sales")
         .withIndex("by_shop_date", (q) =>
@@ -46,13 +49,13 @@ export const getSales = query({
         )
         .collect();
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("sales")
           .withIndex("by_shop_date", (q) =>
-            q.eq("shopId", s._id).gte("date", dateFrom).lte("date", dateTo)
+            q.eq("shopId", sid).gte("date", dateFrom).lte("date", dateTo)
           )
           .collect()
       )
@@ -101,9 +104,12 @@ export const getFinancials = query({
       return await byRrDt(sid);
     };
 
-    if (shopId) return await forShop(shopId);
-    const shops = await ctx.db.query("shops").collect();
-    const results = await Promise.all(shops.map((s) => forShop(s._id)));
+    if (shopId) {
+      await ensureShopAccess(ctx, shopId);
+      return await forShop(shopId);
+    }
+    const shopIds = await listUserShopIds(ctx);
+    const results = await Promise.all(shopIds.map((sid) => forShop(sid)));
     return results.flat();
   },
 });
@@ -114,17 +120,18 @@ export const getCosts = query({
   },
   handler: async (ctx, { shopId }) => {
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       return await ctx.db
         .query("costs")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("costs")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
       )
     );
@@ -140,17 +147,18 @@ export const getCampaigns = query({
   },
   handler: async (ctx, { shopId }) => {
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       return await ctx.db
         .query("campaigns")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("campaigns")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
       )
     );
@@ -192,9 +200,12 @@ export const getNmReports = query({
       return [...byNm.values()];
     };
 
-    if (shopId) return await collectFor(shopId);
-    const shops = await ctx.db.query("shops").collect();
-    const results = await Promise.all(shops.map((s) => collectFor(s._id)));
+    if (shopId) {
+      await ensureShopAccess(ctx, shopId);
+      return await collectFor(shopId);
+    }
+    const shopIds = await listUserShopIds(ctx);
+    const results = await Promise.all(shopIds.map((sid) => collectFor(sid)));
     return results.flat();
   },
 });
@@ -203,17 +214,18 @@ export const getProductCards = query({
   args: { shopId: v.optional(v.id("shops")) },
   handler: async (ctx, { shopId }) => {
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       return await ctx.db
         .query("productCards")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("productCards")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
       )
     );
@@ -236,18 +248,19 @@ export const getFeedbacks = query({
       });
     };
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       const results = await ctx.db
         .query("feedbacks")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
       return filterByDate(results);
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("feedbacks")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
       )
     );
@@ -270,18 +283,19 @@ export const getQuestions = query({
       });
     };
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       const results = await ctx.db
         .query("questions")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
       return filterByDate(results);
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("questions")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
       )
     );
@@ -303,23 +317,48 @@ export const getReturns = query({
         return d >= dateFrom && d <= dateTo;
       });
     };
+    const financialReturnsForShop = async (sid: typeof shopId) => {
+      if (!dateFrom || !dateTo) return [];
+      const rows = await ctx.db
+        .query("financials")
+        .withIndex("by_shop_rrdt", (q) =>
+          q.eq("shopId", sid!).gte("rrDt", dateFrom).lte("rrDt", dateTo)
+        )
+        .collect();
+      return rows
+        .filter((row) => row.docTypeName === "Возврат" && row.nmId > 0)
+        .map((row) => ({
+          _id: row._id,
+          _creationTime: row._creationTime,
+          shopId: row.shopId,
+          returnId: `financial:${row._id}`,
+          nmId: row.nmId,
+          orderId: row.supplierArticle,
+          returnDate: row.rrDt ?? row.dateFrom,
+          warehouseName: row.warehouseName,
+          status: "Возврат по отчету WB",
+        }));
+    };
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       const results = await ctx.db
         .query("returns")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
-      return filterByDate(results);
+      const financialReturns = await financialReturnsForShop(shopId);
+      return [...filterByDate(results), ...financialReturns];
     }
-    const shops = await ctx.db.query("shops").collect();
-    const results = await Promise.all(
-      shops.map((s) =>
+    const shopIds = await listUserShopIds(ctx);
+    const [claims, financialReturns] = await Promise.all([
+      Promise.all(shopIds.map((sid) =>
         ctx.db
           .query("returns")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
-      )
-    );
-    return filterByDate(results.flat());
+      )),
+      Promise.all(shopIds.map((sid) => financialReturnsForShop(sid))),
+    ]);
+    return [...filterByDate(claims.flat()), ...financialReturns.flat()];
   },
 });
 
@@ -327,17 +366,18 @@ export const getPrices = query({
   args: { shopId: v.optional(v.id("shops")) },
   handler: async (ctx, { shopId }) => {
     if (shopId) {
+      await ensureShopAccess(ctx, shopId);
       return await ctx.db
         .query("prices")
         .withIndex("by_shop", (q) => q.eq("shopId", shopId))
         .collect();
     }
-    const shops = await ctx.db.query("shops").collect();
+    const shopIds = await listUserShopIds(ctx);
     const results = await Promise.all(
-      shops.map((s) =>
+      shopIds.map((sid) =>
         ctx.db
           .query("prices")
-          .withIndex("by_shop", (q) => q.eq("shopId", s._id))
+          .withIndex("by_shop", (q) => q.eq("shopId", sid))
           .collect()
       )
     );
@@ -348,6 +388,7 @@ export const getPrices = query({
 export const getStocks = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
+    await ensureShopAccess(ctx, shopId);
     return await ctx.db
       .query("stocks")
       .withIndex("by_shop", (q) => q.eq("shopId", shopId))

@@ -1,5 +1,19 @@
 import { internalAction } from "./_generated/server";
-import { internal } from "./_generated/api";
+import {
+  shopsListInternalRef,
+  shopsUpdateLastSyncRef,
+  syncOrdersRef,
+  syncSalesRef,
+  syncStocksRef,
+  syncFinancialsRef,
+  syncPromotionRef,
+  syncAnalyticsRef,
+  syncContentRef,
+  syncFeedbacksRef,
+  syncPricesRef,
+  syncReturnsRef,
+  syncTariffsRef,
+} from "./lib/syncRefs";
 
 // Каждая функция синхронизирует одну категорию для всех активных магазинов.
 // Вызываются из отдельных кронов со сдвигом по времени,
@@ -10,13 +24,13 @@ const INTER_SHOP_DELAY = 65_000;
 
 export const syncAllOrders = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncStatistics.syncOrders, {
+      await ctx.runAction(syncOrdersRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -25,13 +39,13 @@ export const syncAllOrders = internalAction({
 
 export const syncAllSales = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncStatistics.syncSales, {
+      await ctx.runAction(syncSalesRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -40,13 +54,13 @@ export const syncAllSales = internalAction({
 
 export const syncAllStocks = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncStatistics.syncStocks, {
+      await ctx.runAction(syncStocksRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -60,11 +74,11 @@ export const syncAllFinancials = internalAction({
     // подряд превышают 10-минутный timeout Convex action — второй шоп обрезается
     // до первой записи в БД. Планируем каждый шоп отдельным action через
     // scheduler.runAfter, чтобы у каждого был свой 10-минутный бюджет.
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let delay = 0;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      await ctx.scheduler.runAfter(delay, internal.sync.syncStatistics.syncFinancials, {
+      await ctx.scheduler.runAfter(delay, syncFinancialsRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
       // Разнос по 8 минут — запас над 6-минутным синком одного шопа.
@@ -75,13 +89,13 @@ export const syncAllFinancials = internalAction({
 
 export const syncAllPromotion = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncPromotion.syncPromotion, {
+      await ctx.runAction(syncPromotionRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -93,11 +107,11 @@ export const syncAllAnalytics = internalAction({
     // Аналогично syncAllFinancials — seller-analytics-api может долго паузиться
     // на 429 (до 4 retry × 60с+) + пагинация 30с/стр. Два шопа подряд упирались
     // в 10-мин timeout Convex action. Разносим по отдельным action через scheduler.
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let delay = 0;
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      await ctx.scheduler.runAfter(delay, internal.sync.syncAnalytics.syncAnalytics, {
+      await ctx.scheduler.runAfter(delay, syncAnalyticsRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
       delay += 8 * 60 * 1000;
@@ -107,13 +121,13 @@ export const syncAllAnalytics = internalAction({
 
 export const syncAllContent = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncContent.syncContent, {
+      await ctx.runAction(syncContentRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -122,13 +136,13 @@ export const syncAllContent = internalAction({
 
 export const syncAllFeedbacks = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncFeedbacks.syncFeedbacks, {
+      await ctx.runAction(syncFeedbacksRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -137,13 +151,13 @@ export const syncAllFeedbacks = internalAction({
 
 export const syncAllPrices = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncPrices.syncPrices, {
+      await ctx.runAction(syncPricesRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -152,13 +166,13 @@ export const syncAllPrices = internalAction({
 
 export const syncAllReturns = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncReturns.syncReturns, {
+      await ctx.runAction(syncReturnsRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -167,13 +181,13 @@ export const syncAllReturns = internalAction({
 
 export const syncAllTariffs = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     let first = true;
     for (const shop of shops) {
       if (!shop.isActive) continue;
       if (!first) await new Promise((r) => setTimeout(r, INTER_SHOP_DELAY));
       first = false;
-      await ctx.runAction(internal.sync.syncTariffs.syncTariffs, {
+      await ctx.runAction(syncTariffsRef, {
         shopId: shop._id, apiKey: shop.apiKey,
       });
     }
@@ -183,10 +197,10 @@ export const syncAllTariffs = internalAction({
 // Обновить lastSyncAt для всех магазинов (вызывается последним кроном в цикле)
 export const updateAllLastSync = internalAction({
   handler: async (ctx) => {
-    const shops = await ctx.runQuery(internal.shops.listInternal);
+    const shops = await ctx.runQuery(shopsListInternalRef);
     for (const shop of shops) {
       if (!shop.isActive) continue;
-      await ctx.runMutation(internal.shops.updateLastSync, { id: shop._id });
+      await ctx.runMutation(shopsUpdateLastSyncRef, { id: shop._id });
     }
   },
 });

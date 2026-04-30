@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { FinlyButton } from "@/components/finly/FinlyButton";
 import { Input } from "@/components/ui/input";
 import { format, subDays } from "date-fns";
 
@@ -29,22 +29,48 @@ export function PeriodSelector({ period, comparePeriod, onChange }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-      {/* Строка 1: Текущий период */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-gray-700 w-20">Период</span>
-        <Input type="date" value={p.from} onChange={(e) => setP({ ...p, from: e.target.value })} className="w-40" />
-        <span className="text-sm text-gray-400">—</span>
-        <Input type="date" value={p.to} onChange={(e) => setP({ ...p, to: e.target.value })} className="w-40" />
-        <Button onClick={apply} size="sm" className="bg-violet-600 hover:bg-violet-700">Применить</Button>
-        <Button onClick={clear} size="sm" variant="outline">Сбросить</Button>
+    <div className="space-y-3 rounded-frame border border-gold-frame/30 bg-card p-4 shadow-rune">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="w-24 font-display text-sm font-semibold text-foreground">
+          Период
+        </span>
+        <Input
+          type="date"
+          value={p.from}
+          onChange={(e) => setP({ ...p, from: e.target.value })}
+          className="w-40 bg-background"
+        />
+        <span className="text-sm text-muted-foreground">—</span>
+        <Input
+          type="date"
+          value={p.to}
+          onChange={(e) => setP({ ...p, to: e.target.value })}
+          className="w-40 bg-background"
+        />
+        <FinlyButton onClick={apply} size="sm">
+          Применить
+        </FinlyButton>
+        <FinlyButton onClick={clear} size="sm" variant="secondary">
+          Сбросить
+        </FinlyButton>
       </div>
-      {/* Строка 2: Период сравнения */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-gray-700 w-20">Сравнение</span>
-        <Input type="date" value={cp.from} onChange={(e) => setCp({ ...cp, from: e.target.value })} className="w-40" />
-        <span className="text-sm text-gray-400">—</span>
-        <Input type="date" value={cp.to} onChange={(e) => setCp({ ...cp, to: e.target.value })} className="w-40" />
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="w-24 font-display text-sm font-semibold text-foreground">
+          Сравнение
+        </span>
+        <Input
+          type="date"
+          value={cp.from}
+          onChange={(e) => setCp({ ...cp, from: e.target.value })}
+          className="w-40 bg-background"
+        />
+        <span className="text-sm text-muted-foreground">—</span>
+        <Input
+          type="date"
+          value={cp.to}
+          onChange={(e) => setCp({ ...cp, to: e.target.value })}
+          className="w-40 bg-background"
+        />
       </div>
     </div>
   );

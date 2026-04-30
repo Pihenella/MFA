@@ -1,7 +1,17 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  isWbBaseToken,
+  logSyncFailure,
+  skipIfWbRateLimited,
+  skipIfWbSyncTooSoon,
+} from "./helpers";
+import { upsertCampaignsRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertCampaigns = internalMutation({
   args: { shopId: v.id("shops"), campaigns: v.array(v.any()) },
@@ -9,7 +19,9 @@ export const upsertCampaigns = internalMutation({
     for (const c of campaigns) {
       const existing = await ctx.db
         .query("campaigns")
-        .withIndex("by_campaign_id", (q) => q.eq("campaignId", c.campaignId))
+        .withIndex("by_shop_campaign", (q) =>
+          q.eq("shopId", shopId).eq("campaignId", Number(c.campaignId) || 0)
+        )
         .first();
       const row = {
         shopId,
@@ -33,6 +45,9 @@ export const upsertCampaigns = internalMutation({
 export const syncPromotion = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "campaigns")) return;
+    if (await skipIfWbSyncTooSoon(ctx, shopId, apiKey, "campaigns")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
 
     try {
@@ -53,15 +68,16 @@ export const syncPromotion = internalAction({
         // Пауза после list запроса перед fullstats
         await new Promise((r) => setTimeout(r, 21000));
         const idBatches = chunk(campaignIds, 50);
-        for (let bi = 0; bi < idBatches.length; bi++) {
+        const statsBatches = isWbBaseToken(apiKey) ? idBatches.slice(0, 1) : idBatches;
+        for (let bi = 0; bi < statsBatches.length; bi++) {
           // fullstats: 3 req/min, 20s interval
           if (bi > 0) await new Promise((r) => setTimeout(r, 21000));
-          const idsParam = idBatches[bi].join(",");
+          const idsParam = statsBatches[bi].join(",");
           const statsRes = await fetchWithRetry(
             `https://advert-api.wildberries.ru/adv/v3/fullstats?ids=${idsParam}&beginDate=${thirtyDaysAgo}&endDate=${today}`,
             { headers },
           );
-          if (!statsRes.ok) continue;
+          await assertOk(statsRes);
           const statsData: any[] = await statsRes.json();
           if (!Array.isArray(statsData)) continue;
           for (const stat of statsData) {
@@ -100,20 +116,20 @@ export const syncPromotion = internalAction({
         }
         const campaignBatches = chunk(allCampaigns, BATCH_SIZE);
         for (const batch of campaignBatches) {
-          await ctx.runMutation(internal.sync.syncPromotion.upsertCampaigns, { shopId, campaigns: batch });
+          await ctx.runMutation(upsertCampaignsRef, { shopId, campaigns: batch });
         }
-        await ctx.runMutation(internal.sync.helpers.logSync, {
+        await clearWbRateLimitGuardForEndpoint(ctx, shopId, "campaigns");
+        await ctx.runMutation(logSyncRef, {
           shopId, endpoint: "campaigns", status: "ok" as const, count: allCampaigns.length,
         });
       } else {
-        await ctx.runMutation(internal.sync.helpers.logSync, {
+        await clearWbRateLimitGuardForEndpoint(ctx, shopId, "campaigns");
+        await ctx.runMutation(logSyncRef, {
           shopId, endpoint: "campaigns", status: "ok" as const, count: 0,
         });
       }
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "campaigns", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "campaigns", e);
     }
   },
 });

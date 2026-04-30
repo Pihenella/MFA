@@ -1,7 +1,15 @@
 import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
-import { chunk, BATCH_SIZE, fetchWithRetry, assertOk } from "./helpers";
+import {
+  chunk,
+  BATCH_SIZE,
+  fetchWithRetry,
+  assertOk,
+  clearWbRateLimitGuardForEndpoint,
+  logSyncFailure,
+  skipIfWbRateLimited,
+} from "./helpers";
+import { upsertPricesRef, logSyncRef } from "../lib/syncRefs";
 
 export const upsertPrices = internalMutation({
   args: { shopId: v.id("shops"), prices: v.array(v.any()) },
@@ -33,6 +41,8 @@ export const upsertPrices = internalMutation({
 export const syncPrices = internalAction({
   args: { shopId: v.id("shops"), apiKey: v.string() },
   handler: async (ctx, { shopId, apiKey }) => {
+    if (await skipIfWbRateLimited(ctx, shopId, "prices")) return;
+
     const headers: Record<string, string> = { Authorization: apiKey };
 
     try {
@@ -50,18 +60,17 @@ export const syncPrices = internalAction({
         totalCount += goods.length;
         const batches = chunk(goods, BATCH_SIZE);
         for (const batch of batches) {
-          await ctx.runMutation(internal.sync.syncPrices.upsertPrices, { shopId, prices: batch });
+          await ctx.runMutation(upsertPricesRef, { shopId, prices: batch });
         }
         if (goods.length < 1000) break;
         offset += goods.length;
       }
-      await ctx.runMutation(internal.sync.helpers.logSync, {
+      await clearWbRateLimitGuardForEndpoint(ctx, shopId, "prices");
+      await ctx.runMutation(logSyncRef, {
         shopId, endpoint: "prices", status: "ok" as const, count: totalCount,
       });
     } catch (e: any) {
-      await ctx.runMutation(internal.sync.helpers.logSync, {
-        shopId, endpoint: "prices", status: "error" as const, error: e.message,
-      });
+      await logSyncFailure(ctx, shopId, "prices", e);
     }
   },
 });
