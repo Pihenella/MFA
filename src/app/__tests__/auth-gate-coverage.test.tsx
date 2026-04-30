@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 // Mock convex hooks used inside content components
 vi.mock("convex/react", () => ({
   useQuery: vi.fn(() => undefined),
+  useConvexAuth: vi.fn(() => ({ isLoading: true, isAuthenticated: false })),
   useMutation: vi.fn(() => vi.fn()),
   useAction: vi.fn(() => vi.fn()),
 }));
